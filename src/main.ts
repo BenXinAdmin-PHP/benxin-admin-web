@@ -21,11 +21,15 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import i18n from './locales'
+import { permission } from './directives/permission'
 
 const app = createApp(App)
 
 app.use(createPinia())
 app.use(router)
 app.use(i18n)
+
+// 按钮级权限指令 v-permission（perms 与后端 enforce 同源）
+app.directive('permission', permission)
 
 app.mount('#app')
