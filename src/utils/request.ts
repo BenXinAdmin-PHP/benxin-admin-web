@@ -5,7 +5,7 @@
  * | @author    仗键天涯(daxing)
  * | @email     3442535897@qq.com
  * | @date      2026-06-08
- * | @updated   2026-06-09
+ * | @updated   2026-06-10
  * +----------------------------------------------------------------------
  */
 import axios, {
@@ -26,6 +26,16 @@ export interface ApiEnvelope<T = unknown> {
   data: T
   request_id: string
   timestamp: number
+}
+
+/**
+ * 后端统一分页结构（基线 §6.3）：page≥1、page_size 默认 15 上限 100。
+ */
+export interface PageResult<T = unknown> {
+  list: T[]
+  total: number
+  page: number
+  page_size: number
 }
 
 // 认证错误码（与后端 ErrorCode 对齐）
