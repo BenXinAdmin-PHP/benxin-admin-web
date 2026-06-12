@@ -5,6 +5,7 @@
   | @author    仗键天涯(daxing)
   | @email     3442535897@qq.com
   | @date      2026-06-10
+  | @updated   2026-06-12（M4-A：datetime 控件 + slot 具名插槽项，承载 XEditor/XUpload 手工槽）
   +----------------------------------------------------------------------
 -->
 <script setup lang="ts">
@@ -95,6 +96,8 @@ function defaultOf(it: FormItem): unknown {
       return it.min ?? 0
     case 'treeSelect':
       return it.multiple ? [] : undefined
+    case 'datetime':
+      return null // 可空 datetime 列：空值提交 null 而非 ''
     default:
       return ''
   }
@@ -247,6 +250,24 @@ async function submit() {
           v-model="form[it.prop]"
           :min="it.min"
           :max="it.max"
+          :disabled="isDisabled(it)"
+        />
+        <el-date-picker
+          v-else-if="it.type === 'datetime'"
+          v-model="form[it.prop]"
+          type="datetime"
+          value-format="YYYY-MM-DD HH:mm:ss"
+          :placeholder="it.placeholder ?? `请选择${it.label}`"
+          :disabled="isDisabled(it)"
+          clearable
+          class="w-full"
+        />
+        <!-- 具名插槽项：XEditor/XUpload 等复杂控件由页面提供模板（手工槽范式） -->
+        <slot
+          v-else-if="it.type === 'slot'"
+          :name="it.slot ?? it.prop"
+          :form="form"
+          :mode="mode"
           :disabled="isDisabled(it)"
         />
         <el-tree-select

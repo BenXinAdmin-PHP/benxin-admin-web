@@ -1,6 +1,6 @@
 # BenXinAdmin · 前端 CRUD 配置 Schema（M3-D0 黄金样板定形）
 
-> **版本**：v1.0 ｜ **定形日期**：2026-06-10 ｜ **维护**：仗键天涯(daxing) + Claude Code
+> **版本**：v1.1（M4-A 增补 §7 手工槽组件）｜ **定形日期**：2026-06-10 ｜ **最后更新**：2026-06-12 ｜ **维护**：仗键天涯(daxing) + Claude Code
 >
 > 本文档固化 M3-D0 手写黄金样板（role / menu 两页）沉淀的三类配置范式，
 > 是 **M3-D1 前端生成器的复刻依据**：生成器从后端模块元数据
@@ -97,7 +97,9 @@ const formConfig: XFormDrawerConfig = {
 约定要点：
 
 - **控件 type 清单**：`input` / `textarea` / `select`（dict 或静态 options）/ `switch` /
-  `number` / `radio` / `treeSelect`（multiple / checkStrictly / treeData 异步取数 / treeProps 映射，节点值固定取 id）。
+  `number` / `radio` / `treeSelect`（multiple / checkStrictly / treeData 异步取数 / treeProps 映射，节点值固定取 id）/
+  `datetime`（M4-A 增，值 `YYYY-MM-DD HH:mm:ss`，清空提交 null 对接可空 datetime 列）/
+  `slot`（M4-A 增，具名插槽项承载复杂控件，见 §7）。
 - **场景复用**：`open('create')` 全默认值（可传 preset 预填，如「新增下级」预置 parent_id）；
   `open('update', row)` 行数据回显，配置 `detail` 则按详情聚合回显。
   required 对接后端 `sceneCreate` 必填；update 提交对接 `sceneUpdate` 选择性更新。
@@ -144,3 +146,25 @@ const formConfig: XFormDrawerConfig = {
 | `relationEndpoints`（GET/PUT /:id/rel） | 分配弹窗（read 回显 + write 覆盖提交）+ rowAction `assign` |
 | `protectedRows` | rowActions `show: (row) => …` 行级隐藏 |
 | 模块 API 调用文件 | api 槽位 `{ list, save, update, remove, status, relation }`（D0 手写 axios；D1 生成手写 axios 薄壳【甲案】，签名与 D0 逐字对齐；OpenAPI 工具链为远期可选，届时签名不变无缝替换） |
+
+## 7. 手工槽组件接入约定（M4-A 增，XUpload / XEditor / AuthImg）
+
+生成器对「复杂控件 / 跨模块数据源」字段在 config 声明 `form => false` 跳过自动控件并留
+TODO 手工槽注释，copy 产物后按下表接线（content / banner 两页为参照实现）：
+
+| 组件 | 用途 | 接入方式 |
+|---|---|---|
+| `XUpload`（`components/XUpload/index.vue`） | 图片上传，v-model 绑 url 字符串（`multiple` 时为数组）；消费 M2-D `POST /files/upload`（finfo 真实 MIME + 白名单 + 重命名 + 非 Web 目录，不新开上传通道） | 表单项声明 `{ prop, label, type: 'slot', required? }`，页面提供 `<template #<prop>="{ form, disabled }"><XUpload v-model="form.<prop>" :disabled="disabled" /></template>` |
+| `XEditor`（`components/XEditor/index.vue`） | 富文本，wangEditor v5（MIT），v-model 绑 HTML；编辑器内图片上传走同一文件通道；后端 HtmlPurifier 白名单净化兜底（§8 XSS 双层防护） | 同上，slot 内 `<XEditor v-model="form.<prop>" />`；建议表单 `width: 760` 给编辑区留宽 |
+| `AuthImg`（`components/XUpload/AuthImg.vue`） | 列表图片列预览：本地驱动受控 URL（`/admin/v1/files/:id/raw` 需鉴权）经 axios 取流为 blob: 预览，公网 URL 直显 | 列声明 `{ prop, type: 'slot' }`，页面 `<template #<prop>="{ row }"><AuthImg :src="row.<prop>" /></template>` |
+
+补充约定：
+
+- **slot 表单项**仍走统一 payload / required 校验收口（值存于 `form[prop]`，组件只负责产出值）。
+- **datetime 项**清空提交 `null`（非 `''`），对接后端可空 datetime 列；后端 validate `date` 规则对 null/空跳过。
+- **daterange 搜索**（banner 生效区间参照）：搜索项 `{ prop: 'effective', type: 'daterange' }` 提交
+  `[起, 止]` 日期对，后端按「区间有交集」过滤（start_at/end_at 空值 = 立即生效/长期有效）——
+  生成器暂不支持区间搜索声明，属回炉候选，详见 M4-A 完成报告。
+- **已知边界**：本地存储驱动下，富文本内嵌图 `<img src="/admin/v1/files/:id/raw">` 无法匿名直链
+  （编辑区/前台渲染均 401），生产建议切 OSS/七牛公网 URL（M2-D 驱动抽象就绪）；
+  封面/广告图等单值字段经 AuthImg / XUpload 鉴权取流不受影响。

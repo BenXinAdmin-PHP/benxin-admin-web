@@ -5,6 +5,7 @@
  * | @author    仗键天涯(daxing)
  * | @email     3442535897@qq.com
  * | @date      2026-06-10
+ * | @updated   2026-06-12（M4-A：新增 datetime 日期时间控件 + slot 具名插槽项）
  * +----------------------------------------------------------------------
  */
 import type { ApiEnvelope } from '@/utils/request'
@@ -18,9 +19,12 @@ export interface FormItem {
   label: string
   /**
    * 控件类型：input / textarea / select（dict 或静态 options）/ switch /
-   * number / radio / treeSelect（部门树、父级菜单等）
+   * number / radio / treeSelect（部门树、父级菜单等）/ datetime（日期时间，
+   * 值 'YYYY-MM-DD HH:mm:ss'，清空为 null 对接可空 datetime 列）/
+   * slot（具名插槽自定义控件，插槽名 = slot ?? prop；XEditor/XUpload 等手工槽走此型，
+   * 作用域参数 { form, mode, disabled }）
    */
-  type: 'input' | 'textarea' | 'select' | 'switch' | 'number' | 'radio' | 'treeSelect'
+  type: 'input' | 'textarea' | 'select' | 'switch' | 'number' | 'radio' | 'treeSelect' | 'datetime' | 'slot'
   /** 必填（对接后端 sceneCreate 必填字段；sceneUpdate 选择性由 visible/payload 收口） */
   required?: boolean
   requiredMessage?: string
@@ -44,7 +48,9 @@ export interface FormItem {
   /** treeSelect 字段映射，默认 label:'title' children:'children'（节点值固定取 id） */
   treeProps?: { label?: string; children?: string }
   placeholder?: string
-  /** 新增场景默认值（缺省按控件类型：switch=activeValue、number=0、多选=[]、其余 ''） */
+  /** type:'slot' 时的插槽名，默认取 prop */
+  slot?: string
+  /** 新增场景默认值（缺省按控件类型：switch=activeValue、number=0、多选=[]、datetime=null、其余 ''） */
   defaultValue?: unknown
   /**
    * 条件显隐（联动范式，模块特化点）：如 menu 按 type 切换字段、role 的
