@@ -117,7 +117,8 @@ const formConfig: XFormDrawerConfig = {
   → 用户勾选 → `getCheckedKeys()` → `PUT roles/:id/menus { menu_ids }` 覆盖提交。
 - **独立勾选语义**：提交精确 id 集合、不做父子级联；后端 profile 取数自动补全祖先目录保证树连通（基线 §7），二者配合自洽。
 - 非法 menu_id 后端整单回滚（422），不留半套 casbin 策略。
-- 已知边界：全不勾提交 `menu_ids: []` 被后端 require 拦为 422「menu_ids不能为空」（清空授权需后端放宽，暂以后端口径为准）。
+- 全不勾提交 `menu_ids: []` = **清空该角色全部授权**（M3-D1 起后端 sceneAssignMenus 放宽 require→array；
+  Casbin 同步移除，权限即时收回），覆盖式语义自洽。
 
 ## 5. 进阶范式（模块特化，D1 复刻边界后议）
 
@@ -142,4 +143,4 @@ const formConfig: XFormDrawerConfig = {
 | perms 前缀（`system:模块:动作`） | toolbar/rowActions/switch 列的 `perm` |
 | `relationEndpoints`（GET/PUT /:id/rel） | 分配弹窗（read 回显 + write 覆盖提交）+ rowAction `assign` |
 | `protectedRows` | rowActions `show: (row) => …` 行级隐藏 |
-| 模块 API 调用文件 | api 槽位 `{ list, save, update, remove, status, relation }`（D0 手写 axios，D1 对接 OpenAPI 工具链产物，槽位签名不变） |
+| 模块 API 调用文件 | api 槽位 `{ list, save, update, remove, status, relation }`（D0 手写 axios；D1 生成手写 axios 薄壳【甲案】，签名与 D0 逐字对齐；OpenAPI 工具链为远期可选，届时签名不变无缝替换） |
