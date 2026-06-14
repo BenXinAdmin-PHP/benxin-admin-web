@@ -5,9 +5,10 @@
  * | @author    仗键天涯(daxing)
  * | @email     3442535897@qq.com
  * | @date      2026-06-12
+ * | @updated   2026-06-14（手工槽：文件管理列表 + 删除）
  * +----------------------------------------------------------------------
  */
-import service, { request, type ApiEnvelope } from '@/utils/request'
+import service, { request, type ApiEnvelope, type PageResult } from '@/utils/request'
 
 /** 上传返回（与后端 FileService::upload 对齐） */
 export interface UploadResult {
@@ -17,6 +18,34 @@ export interface UploadResult {
   size: number
   mime: string
   ext: string
+}
+
+/** 文件记录行（管理列表） */
+export interface FileItem {
+  id: number
+  tenant_id: number
+  original_name: string
+  file_name: string
+  path: string
+  mime: string
+  ext: string
+  size: number
+  storage: string
+  hash: string
+  url: string
+  created_at: string | null
+}
+
+/** GET /admin/v1/files —— 文件分页列表（ext/mime/keyword/时间范围筛选；数据权限 ADR-9） */
+export function listFiles(
+  params: Record<string, unknown>,
+): Promise<ApiEnvelope<PageResult<FileItem>>> {
+  return request<PageResult<FileItem>>({ url: '/v1/files', method: 'get', params })
+}
+
+/** DELETE /admin/v1/files/:id —— 删除（软删，物理文件保留） */
+export function deleteFile(id: number): Promise<ApiEnvelope<null>> {
+  return request<null>({ url: `/v1/files/${id}`, method: 'delete' })
 }
 
 /**
