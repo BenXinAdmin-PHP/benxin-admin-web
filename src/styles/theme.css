@@ -1,0 +1,328 @@
+/*
+ * +----------------------------------------------------------------------
+ * | @project   BenXinAdmin
+ * | @mission   后台 Design Token 体系（5 套主题 × 明暗模式，语义化 CSS 变量 + Element Plus 联动）
+ * | @author    仗键天涯(daxing)
+ * | @email     3442535897@qq.com
+ * | @date      2026-06-14
+ * +----------------------------------------------------------------------
+ *
+ * 用法：在 <html> 上设置 data-theme="classic|elegant|tech|gov|bento" 与 data-mode="light|dark"
+ * （暗色同时挂 .dark 类，供 Element Plus 暗色 css-vars 生效）。全站组件只引用 --bx-* / --el-* 变量，
+ * 不写死色值；切主题即换整组变量，无需刷新（见 src/composables/useTheme.ts）。
+ *
+ * 落地边界（护城河）：配色切换 = 纯 CSS 变量替换，绝不改任何单页 DOM 结构。
+ */
+
+/* ====================================================================
+ * 一、Element Plus 主色梯度推导 + 语义变量映射
+ *   只在各主题里设 --bx-color-primary / --el-color-primary，其余梯度由 color-mix 派生，
+ *   避免每套主题手列 6 档浅深色。--bx-el-mix 在明暗下分别混白 / 混深，保证暗色梯度合理。
+ * ==================================================================== */
+:root {
+  --bx-el-mix: #ffffff;
+}
+html.dark {
+  --bx-el-mix: #141414;
+}
+
+:root,
+html.dark {
+  --el-color-primary-light-3: color-mix(in srgb, var(--el-color-primary) 70%, var(--bx-el-mix));
+  --el-color-primary-light-5: color-mix(in srgb, var(--el-color-primary) 50%, var(--bx-el-mix));
+  --el-color-primary-light-7: color-mix(in srgb, var(--el-color-primary) 30%, var(--bx-el-mix));
+  --el-color-primary-light-8: color-mix(in srgb, var(--el-color-primary) 20%, var(--bx-el-mix));
+  --el-color-primary-light-9: color-mix(in srgb, var(--el-color-primary) 10%, var(--bx-el-mix));
+  --el-color-primary-dark-2: color-mix(in srgb, var(--el-color-primary) 80%, #000000);
+}
+
+/* 把 Element Plus 的中性面板 / 文本 / 描边 / 表格变量统一接到 --bx-* 语义 token，
+   明暗两套都覆盖（theme.css 在 main.ts 中于 EP 暗色 css-vars 之后引入，html.dark 同特异性后者胜出）。 */
+:root,
+html.dark {
+  --el-bg-color: var(--bx-card-bg);
+  --el-bg-color-page: var(--bx-page-bg);
+  --el-bg-color-overlay: var(--bx-card-bg);
+  --el-text-color-primary: var(--bx-text-primary);
+  --el-text-color-regular: var(--bx-text-secondary);
+  --el-text-color-secondary: var(--bx-text-tertiary);
+  --el-border-color: var(--bx-border);
+  --el-border-color-light: var(--bx-border);
+  --el-border-color-lighter: var(--bx-border);
+  --el-border-color-extra-light: var(--bx-border);
+  --el-fill-color-light: var(--bx-table-row-hover);
+  --el-fill-color-blank: var(--bx-card-bg);
+  --el-table-bg-color: var(--bx-card-bg);
+  --el-table-tr-bg-color: var(--bx-card-bg);
+  --el-table-header-bg-color: var(--bx-table-header-bg);
+  --el-table-row-hover-bg-color: var(--bx-table-row-hover);
+  --el-table-border-color: var(--bx-border);
+  --el-border-radius-base: var(--bx-control-radius);
+}
+
+/* ====================================================================
+ * 二、五套主题（明色）
+ * ==================================================================== */
+
+/* —— classic 经典企业（默认）—— */
+html[data-theme='classic'] {
+  --el-color-primary: #2b6fff;
+  --bx-color-primary: #2b6fff;
+  --bx-color-primary-hover: #4a82ff;
+  --bx-color-primary-soft: #eef3ff;
+  --bx-sidebar-bg: #0a1f44;
+  --bx-sidebar-text: rgba(255, 255, 255, 0.72);
+  --bx-sidebar-text-active: #ffffff;
+  --bx-sidebar-item-active-bg: #2b6fff;
+  --bx-topbar-bg: #ffffff;
+  --bx-page-bg: #f4f6fb;
+  --bx-card-bg: #ffffff;
+  --bx-card-border: #eef0f5;
+  --bx-card-radius: 14px;
+  --bx-control-radius: 8px;
+  --bx-card-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.05);
+  --bx-text-primary: #1f2733;
+  --bx-text-secondary: #5b6573;
+  --bx-text-tertiary: #98a2b3;
+  --bx-border: #e6e9f0;
+  --bx-table-header-bg: #f7f9fc;
+  --bx-table-row-hover: #f2f6ff;
+  --bx-tag-bg: #eef3ff;
+  --bx-tag-text: #2b6fff;
+  --bx-input-bg: #ffffff;
+  --bx-input-border: #dcdfe6;
+  --bx-input-focus: #2b6fff;
+}
+
+/* —— elegant 高级内敛（墨 + 金）—— */
+html[data-theme='elegant'] {
+  --el-color-primary: #14233d;
+  --bx-color-primary: #14233d;
+  --bx-color-primary-hover: #24385a;
+  --bx-color-primary-soft: #f6efdf;
+  --bx-color-accent: #c9a24b;
+  --bx-sidebar-bg: #0c1a30;
+  --bx-sidebar-text: rgba(255, 255, 255, 0.7);
+  --bx-sidebar-text-active: #f0d999;
+  --bx-sidebar-item-active-bg: rgba(201, 162, 75, 0.16);
+  --bx-topbar-bg: #ffffff;
+  --bx-page-bg: #fafbfc;
+  --bx-card-bg: #ffffff;
+  --bx-card-border: #ede9e0;
+  --bx-card-radius: 14px;
+  --bx-control-radius: 8px;
+  --bx-card-shadow: 0 1px 2px rgba(28, 24, 16, 0.04), 0 10px 30px rgba(28, 24, 16, 0.06);
+  --bx-text-primary: #1b2330;
+  --bx-text-secondary: #5a6271;
+  --bx-text-tertiary: #9aa0ab;
+  --bx-border: #ece9e3;
+  --bx-table-header-bg: #faf8f4;
+  --bx-table-row-hover: #faf6ec;
+  --bx-tag-bg: #f6efdf;
+  --bx-tag-text: #9a7a2e;
+  --bx-input-bg: #ffffff;
+  --bx-input-border: #ddd8cd;
+  --bx-input-focus: #c9a24b;
+}
+
+/* —— tech 科技蓝 —— */
+html[data-theme='tech'] {
+  --el-color-primary: #2b6fff;
+  --bx-color-primary: #2b6fff;
+  --bx-color-primary-hover: #5a8bff;
+  --bx-color-primary-soft: #eaf1ff;
+  --bx-sidebar-bg: #0c1830;
+  --bx-sidebar-text: rgba(255, 255, 255, 0.72);
+  --bx-sidebar-text-active: #ffffff;
+  --bx-sidebar-item-active-bg: rgba(43, 111, 255, 0.85);
+  --bx-topbar-bg: #ffffff;
+  --bx-page-bg: #f3f6fc;
+  --bx-card-bg: #ffffff;
+  --bx-card-border: #e8edf6;
+  --bx-card-radius: 12px;
+  --bx-control-radius: 8px;
+  --bx-card-shadow: 0 1px 2px rgba(16, 32, 64, 0.04), 0 8px 24px rgba(16, 32, 64, 0.06);
+  --bx-text-primary: #16213a;
+  --bx-text-secondary: #586073;
+  --bx-text-tertiary: #97a0b3;
+  --bx-border: #e4e9f2;
+  --bx-table-header-bg: #f4f7fd;
+  --bx-table-row-hover: #eef4ff;
+  --bx-tag-bg: #eaf1ff;
+  --bx-tag-text: #2b6fff;
+  --bx-input-bg: #ffffff;
+  --bx-input-border: #d8deea;
+  --bx-input-focus: #2b6fff;
+}
+
+/* —— gov 政企蓝（浅侧栏 + 顶栏深蓝渐变 + 高信息密度 + 清晰边框）—— */
+html[data-theme='gov'] {
+  --el-color-primary: #0a3a72;
+  --bx-color-primary: #0a3a72;
+  --bx-color-primary-hover: #0d4b91;
+  --bx-color-primary-soft: #e8f0fb;
+  --bx-sidebar-bg: #ffffff;
+  --bx-sidebar-text: #33415c;
+  --bx-sidebar-text-active: #0a3a72;
+  --bx-sidebar-item-active-bg: #e8f0fb;
+  --bx-topbar-bg: linear-gradient(90deg, #08305e 0%, #0a3a72 100%);
+  --bx-page-bg: #f2f4f7;
+  --bx-card-bg: #ffffff;
+  --bx-card-border: #d8dee8;
+  --bx-card-radius: 6px;
+  --bx-control-radius: 4px;
+  --bx-card-shadow: 0 1px 2px rgba(10, 36, 72, 0.05);
+  --bx-text-primary: #1c2738;
+  --bx-text-secondary: #4b5870;
+  --bx-text-tertiary: #8a93a6;
+  --bx-border: #d4dae4;
+  --bx-table-header-bg: #eef2f7;
+  --bx-table-row-hover: #eef4fb;
+  --bx-tag-bg: #e8f0fb;
+  --bx-tag-text: #0a3a72;
+  --bx-input-bg: #ffffff;
+  --bx-input-border: #cbd3e0;
+  --bx-input-focus: #0a3a72;
+}
+
+/* —— bento 仪表盘（暖白底 + 墨黑标题 + 大圆角）—— */
+html[data-theme='bento'] {
+  --el-color-primary: #4f6ef7;
+  --bx-color-primary: #4f6ef7;
+  --bx-color-primary-hover: #6a85f9;
+  --bx-color-primary-soft: #ecebff;
+  --bx-sidebar-bg: #16140f;
+  --bx-sidebar-text: rgba(255, 255, 255, 0.68);
+  --bx-sidebar-text-active: #ffffff;
+  --bx-sidebar-item-active-bg: rgba(79, 110, 247, 0.9);
+  --bx-topbar-bg: #f4f2ee;
+  --bx-page-bg: #f4f2ee;
+  --bx-card-bg: #fffdf9;
+  --bx-card-border: #ece7dd;
+  --bx-card-radius: 20px;
+  --bx-control-radius: 10px;
+  --bx-card-shadow: 0 1px 2px rgba(22, 20, 15, 0.03), 0 10px 30px rgba(22, 20, 15, 0.05);
+  --bx-text-primary: #16140f;
+  --bx-text-secondary: #5b5648;
+  --bx-text-tertiary: #9a9384;
+  --bx-border: #ebe5d9;
+  --bx-table-header-bg: #f7f4ee;
+  --bx-table-row-hover: #f3f0e8;
+  --bx-tag-bg: #ecebff;
+  --bx-tag-text: #4f6ef7;
+  --bx-input-bg: #fffdf9;
+  --bx-input-border: #ddd6c8;
+  --bx-input-focus: #4f6ef7;
+}
+
+/* ====================================================================
+ * 三、五套主题（暗色）—— 仅覆盖面板 / 文本 / 描边等差异项，主色保持品牌色
+ *   tech / bento 暗色重点打磨（玻璃旗舰 / 暖墨）；其余保证可读对比度。
+ * ==================================================================== */
+
+html.dark[data-theme='classic'] {
+  --bx-sidebar-bg: #0a1730;
+  --bx-sidebar-text: rgba(255, 255, 255, 0.66);
+  --bx-sidebar-item-active-bg: #2b6fff;
+  --bx-topbar-bg: #131b2b;
+  --bx-page-bg: #0e1422;
+  --bx-card-bg: #161e2e;
+  --bx-card-border: #232c3f;
+  --bx-card-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  --bx-text-primary: #e6ebf2;
+  --bx-text-secondary: #9aa5b5;
+  --bx-text-tertiary: #6b7585;
+  --bx-border: #2a3346;
+  --bx-table-header-bg: #1b2435;
+  --bx-table-row-hover: #1f2a3d;
+  --bx-tag-bg: rgba(43, 111, 255, 0.18);
+  --bx-tag-text: #6ea0ff;
+  --bx-input-bg: #131b2b;
+  --bx-input-border: #2a3346;
+}
+
+html.dark[data-theme='elegant'] {
+  --bx-sidebar-bg: #0a1526;
+  --bx-topbar-bg: #121a2a;
+  --bx-page-bg: #0d1320;
+  --bx-card-bg: #151c2a;
+  --bx-card-border: #25303f;
+  --bx-card-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --bx-text-primary: #ece7da;
+  --bx-text-secondary: #a59f90;
+  --bx-text-tertiary: #6f6a5d;
+  --bx-border: #2a3344;
+  --bx-table-header-bg: #1a212f;
+  --bx-table-row-hover: #1f2735;
+  --bx-tag-bg: rgba(201, 162, 75, 0.18);
+  --bx-tag-text: #e0c074;
+  --bx-input-bg: #121a2a;
+  --bx-input-border: #2a3344;
+}
+
+/* tech 暗色：玻璃旗舰——半透明卡片 + 亮蓝描边 */
+html.dark[data-theme='tech'] {
+  --el-color-primary: #4d8dff;
+  --bx-color-primary: #4d8dff;
+  --bx-color-primary-hover: #6fa3ff;
+  --bx-sidebar-bg: #0a1226;
+  --bx-topbar-bg: rgba(13, 20, 38, 0.85);
+  --bx-page-bg: #060a14;
+  --bx-card-bg: rgba(20, 28, 46, 0.62);
+  --bx-card-border: rgba(120, 160, 255, 0.18);
+  --bx-card-radius: 12px;
+  --bx-card-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --bx-text-primary: #e7eefc;
+  --bx-text-secondary: #97a6c4;
+  --bx-text-tertiary: #62718f;
+  --bx-border: rgba(120, 160, 255, 0.16);
+  --bx-table-header-bg: rgba(30, 44, 74, 0.6);
+  --bx-table-row-hover: rgba(58, 96, 170, 0.22);
+  --bx-tag-bg: rgba(77, 141, 255, 0.18);
+  --bx-tag-text: #82b0ff;
+  --bx-input-bg: rgba(20, 28, 46, 0.5);
+  --bx-input-border: rgba(120, 160, 255, 0.22);
+}
+
+html.dark[data-theme='gov'] {
+  --bx-sidebar-bg: #0f1722;
+  --bx-sidebar-text: rgba(255, 255, 255, 0.7);
+  --bx-sidebar-text-active: #6fa6e8;
+  --bx-sidebar-item-active-bg: rgba(47, 109, 176, 0.22);
+  --bx-topbar-bg: linear-gradient(90deg, #0a1726 0%, #0f2438 100%);
+  --bx-color-primary: #2f6db0;
+  --el-color-primary: #2f6db0;
+  --bx-page-bg: #0c121b;
+  --bx-card-bg: #131b27;
+  --bx-card-border: #243042;
+  --bx-text-primary: #e3e9f1;
+  --bx-text-secondary: #98a4b6;
+  --bx-text-tertiary: #6b7787;
+  --bx-border: #283546;
+  --bx-table-header-bg: #18222f;
+  --bx-table-row-hover: #1c2836;
+  --bx-tag-bg: rgba(47, 109, 176, 0.2);
+  --bx-tag-text: #6fa6e8;
+  --bx-input-bg: #131b27;
+  --bx-input-border: #283546;
+}
+
+/* bento 暗色：暖墨 + 玻璃感大圆角卡片 */
+html.dark[data-theme='bento'] {
+  --bx-sidebar-bg: #121016;
+  --bx-topbar-bg: #16140f;
+  --bx-page-bg: #16140f;
+  --bx-card-bg: #211e26;
+  --bx-card-border: rgba(255, 255, 255, 0.07);
+  --bx-card-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  --bx-text-primary: #f3efe6;
+  --bx-text-secondary: #b0a999;
+  --bx-text-tertiary: #79735f;
+  --bx-border: rgba(255, 255, 255, 0.08);
+  --bx-table-header-bg: #25222b;
+  --bx-table-row-hover: #2a2731;
+  --bx-tag-bg: rgba(79, 110, 247, 0.2);
+  --bx-tag-text: #92a4fb;
+  --bx-input-bg: #211e26;
+  --bx-input-border: rgba(255, 255, 255, 0.1);
+}

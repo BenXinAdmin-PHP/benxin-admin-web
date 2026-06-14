@@ -5,6 +5,20 @@
     <link rel="icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BenXinAdmin 管理后台</title>
+    <!-- 首屏防闪：app 挂载前从 localStorage 读取主题/明暗，先行设置 <html> 属性，避免闪白 -->
+    <script>
+      ;(function () {
+        try {
+          var themes = ['classic', 'elegant', 'tech', 'gov', 'bento']
+          var t = localStorage.getItem('bx-theme')
+          var m = localStorage.getItem('bx-mode')
+          var el = document.documentElement
+          el.dataset.theme = themes.indexOf(t) >= 0 ? t : 'classic'
+          el.dataset.mode = m === 'dark' ? 'dark' : 'light'
+          if (m === 'dark') el.classList.add('dark')
+        } catch (e) {}
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>

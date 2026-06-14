@@ -10,13 +10,16 @@
  */
 import '@unocss/reset/tailwind.css'
 import 'virtual:uno.css'
-// Element Plus 暗色主题变量：为后续主题切换（M1）预留，组件样式由按需自动导入处理
+// Element Plus 暗色主题变量：暗色模式由 <html>.dark 激活（见 useTheme），须在 theme.css 之前引入，
+// 让 theme.css 的 html.dark 覆盖在其后生效（同特异性后者胜出）。
 import 'element-plus/theme-chalk/dark/css-vars.css'
 // 函数式调用的 ElMessage / ElMessageBox 为显式 import，单独引入其样式（非模板组件，按需导入不覆盖）
 import 'element-plus/theme-chalk/el-message.css'
 import 'element-plus/theme-chalk/el-message-box.css'
 import 'element-plus/theme-chalk/el-overlay.css'
-import './assets/main.css'
+// Design Token 体系（5 套主题 × 明暗）+ 全局精致化样式
+import '@/styles/theme.css'
+import '@/styles/app.css'
 
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
@@ -25,6 +28,10 @@ import App from './App.vue'
 import router from './router'
 import i18n from './locales'
 import { permission } from './directives/permission'
+import { initTheme } from '@/composables/useTheme'
+
+// 应用主题（与 index.html 首屏防闪脚本设置一致，确保运行态同步）
+initTheme()
 
 const app = createApp(App)
 
