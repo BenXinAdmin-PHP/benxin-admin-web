@@ -119,16 +119,19 @@ async function handleLogout() {
       </el-header>
 
       <el-main class="bx-main">
-        <!-- Suspense 托底懒加载（import.meta.glob 异步组件）：out-in 过渡下避免新组件未
-             resolve 即留白；:key 按路由强制重挂，确保点击菜单即时渲染、无需刷新 -->
+        <!-- 单根包裹 div：CRUD 页多为多根 fragment（el-card + 抽屉/弹窗并列），
+             transition 无法对多根做 enter/leave → 客户端导航白屏。故套一层带
+             :key 的 div 作单一可动画根，多根组件随它整体进出；Suspense 托底懒加载。 -->
         <RouterView v-slot="{ Component, route }">
           <transition name="bx-fade" mode="out-in">
-            <Suspense>
-              <component :is="Component" :key="route.fullPath" />
-              <template #fallback>
-                <div class="bx-page-loading"><el-skeleton :rows="6" animated /></div>
-              </template>
-            </Suspense>
+            <div :key="route.fullPath" class="bx-page-wrap">
+              <Suspense>
+                <component :is="Component" />
+                <template #fallback>
+                  <div class="bx-page-loading"><el-skeleton :rows="6" animated /></div>
+                </template>
+              </Suspense>
+            </div>
           </transition>
         </RouterView>
       </el-main>
@@ -268,6 +271,11 @@ async function handleLogout() {
 .bx-main {
   background: var(--bx-page-bg);
   padding: 18px;
+}
+/* 路由页透明包裹：给 transition 单一可动画根（CRUD 页为多根 fragment）。
+   block 满宽、无 margin/padding，不引入盒模型副作用，布局与升级前一致。 */
+.bx-page-wrap {
+  width: 100%;
 }
 /* 异步组件 resolve 期间的轻量骨架占位（跟随卡片节奏，避免布局跳动） */
 .bx-page-loading {
