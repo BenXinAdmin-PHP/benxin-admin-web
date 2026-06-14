@@ -13,7 +13,9 @@
 - **401 分流**：401003 access 过期**单飞 refresh 静默续期重试**，401001/401004 跳登录清会话。
 - **配置化 CRUD**：`XTable`（列表/搜索/分页/行操作）+ `XFormDrawer`（编辑表单）+ 分配菜单树形弹窗——即代码生成器前端产物的黄金样板。
 
-<!-- 截图占位：登录页 / 菜单管理 / 角色分配菜单 -->
+![BenXinAdmin 后台 Bento 数据仪表盘首页](docs/screenshots/dashboard-bento.png)
+
+![BenXinAdmin 后台 5 套可切换主题 + 明暗模式面板](docs/screenshots/theme-panel.png)
 
 ## 快速开始
 
