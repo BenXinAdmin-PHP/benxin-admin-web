@@ -119,9 +119,16 @@ async function handleLogout() {
       </el-header>
 
       <el-main class="bx-main">
-        <RouterView v-slot="{ Component }">
+        <!-- Suspense 托底懒加载（import.meta.glob 异步组件）：out-in 过渡下避免新组件未
+             resolve 即留白；:key 按路由强制重挂，确保点击菜单即时渲染、无需刷新 -->
+        <RouterView v-slot="{ Component, route }">
           <transition name="bx-fade" mode="out-in">
-            <component :is="Component" />
+            <Suspense>
+              <component :is="Component" :key="route.fullPath" />
+              <template #fallback>
+                <div class="bx-page-loading"><el-skeleton :rows="6" animated /></div>
+              </template>
+            </Suspense>
           </transition>
         </RouterView>
       </el-main>
@@ -261,6 +268,13 @@ async function handleLogout() {
 .bx-main {
   background: var(--bx-page-bg);
   padding: 18px;
+}
+/* 异步组件 resolve 期间的轻量骨架占位（跟随卡片节奏，避免布局跳动） */
+.bx-page-loading {
+  padding: 20px;
+  background: var(--bx-card-bg);
+  border: 1px solid var(--bx-card-border);
+  border-radius: var(--bx-card-radius);
 }
 
 /* 路由切换淡入淡出 */
