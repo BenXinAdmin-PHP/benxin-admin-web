@@ -1,6 +1,8 @@
 # BenXinAdmin · 管理后台前端（benxin-admin-web）
 
 > [BenXinAdmin](https://gitee.com/binxin-admin/binxin-admin-server) 通用管理后台底座的**配套后台前端**。开源协议：**Apache-2.0**。
+>
+> 🤖 本项目全程 Vibe Coding 实践（AI 规划 + 编码、人类拍板验收，质量靠规范化基线 + 保真回归 + 安全基线支撑），详见[主仓](https://gitee.com/binxin-admin/binxin-admin-server)。
 
 技术栈：Vue **3.5** + TypeScript + Vite + Element Plus（按需自动导入）+ Pinia + Vue Router + UnoCSS + Axios（统一封装，业务码风格 A）。
 
