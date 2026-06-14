@@ -1,15 +1,17 @@
 <!--
   +----------------------------------------------------------------------
   | @project   BenXinAdmin
-  | @mission   XTable 配置化表格（搜索 + 列表/树形 + 分页 + 工具栏 + 操作列 + v-permission）
+  | @mission   XTable 配置化表格（搜索 + 列表/树形 + 分页 + 工具栏 + 表格/卡片双视图 + 操作列 + v-permission）
   | @author    仗键天涯(daxing)
   | @email     3442535897@qq.com
   | @date      2026-06-10
+  | @updated   2026-06-14
   +----------------------------------------------------------------------
 -->
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Grid, List } from '@element-plus/icons-vue'
 import { useDict } from '@/composables/useDict'
 import { useUserStore } from '@/stores/user'
 import type { PageResult } from '@/utils/request'
@@ -117,6 +119,36 @@ function reload(reset = false) {
 }
 
 defineExpose({ reload })
+
+// ---- 视图模式（表格 / 卡片）：一份 config 驱动两种渲染，存 localStorage（全局默认）----
+// 树形列表强制表格（层级缩进卡片化无意义）；切换不改任何单页 DOM、不影响生成器基线。
+const STORAGE_VIEW = 'bx-list-view'
+const viewMode = ref<'table' | 'card'>(localStorage.getItem(STORAGE_VIEW) === 'card' ? 'card' : 'table')
+const effectiveView = computed<'table' | 'card'>(() => (config.tree ? 'table' : viewMode.value))
+function setView(v: 'table' | 'card') {
+  viewMode.value = v
+  localStorage.setItem(STORAGE_VIEW, v)
+}
+
+// 卡片字段映射：主字段（name/title 优先，否则首个非 id 文本列）作标题，其余列作明细，操作沿用 rowActions
+const titleCol = computed<ColumnItem | undefined>(() => {
+  const cols = config.columns
+  return (
+    cols.find((c) => c.prop === 'name' || c.prop === 'title') ??
+    cols.find((c) => (c.type ?? 'text') === 'text' && c.prop !== 'id') ??
+    cols[0]
+  )
+})
+const bodyCols = computed<ColumnItem[]>(() =>
+  config.columns.filter((c) => c.prop !== titleCol.value?.prop && c.prop !== 'id'),
+)
+function cardTitle(row: Row): string {
+  return String(row[titleCol.value?.prop ?? rowKey] ?? '')
+}
+function cardAvatar(row: Row): string {
+  const t = cardTitle(row).trim()
+  return t ? t.slice(0, 1).toUpperCase() : '#'
+}
 
 // ---- 状态开关（api.status；失败回滚行值）----
 function canToggle(col: ColumnItem): boolean {
@@ -227,19 +259,38 @@ fetchData()
       </el-form-item>
     </el-form>
 
-    <!-- 工具栏 -->
-    <div v-if="config.toolbar?.create" class="mb-3">
-      <el-button
-        v-permission="config.toolbar.create.perm"
-        type="primary"
-        @click="emit('action', 'create', null)"
+    <!-- 工具栏：左新增 / 右「表格·卡片」视图切换（树形不提供卡片视图） -->
+    <div
+      v-if="config.toolbar?.create || !config.tree"
+      class="mb-3 flex items-center justify-between"
+    >
+      <div>
+        <el-button
+          v-if="config.toolbar?.create"
+          v-permission="config.toolbar.create.perm"
+          type="primary"
+          @click="emit('action', 'create', null)"
+        >
+          {{ config.toolbar.create.label ?? '新增' }}
+        </el-button>
+      </div>
+      <el-radio-group
+        v-if="!config.tree"
+        :model-value="effectiveView"
+        @update:model-value="(v: string | number | boolean) => setView(v as 'table' | 'card')"
       >
-        {{ config.toolbar.create.label ?? '新增' }}
-      </el-button>
+        <el-radio-button value="table" title="表格视图">
+          <el-icon><List /></el-icon>
+        </el-radio-button>
+        <el-radio-button value="card" title="卡片视图">
+          <el-icon><Grid /></el-icon>
+        </el-radio-button>
+      </el-radio-group>
     </div>
 
-    <!-- 表格（平铺/树形共用；树形走 row-key + tree-props 缩进展开） -->
+    <!-- 表格视图（平铺/树形共用；树形走 row-key + tree-props 缩进展开） -->
     <el-table
+      v-if="effectiveView === 'table'"
       v-loading="loading"
       :data="rows"
       :row-key="rowKey"
@@ -303,6 +354,61 @@ fetchData()
       </el-table-column>
     </el-table>
 
+    <!-- 卡片视图（Bento 风：同一份 data 渲染为卡片网格，字段从 columns 推导） -->
+    <div v-else v-loading="loading" class="bx-card-grid">
+      <el-empty v-if="!rows.length" description="暂无数据" />
+      <div v-for="row in rows" :key="String(row[rowKey])" class="bx-data-card">
+        <div class="bx-data-card__head">
+          <span class="bx-data-card__avatar">{{ cardAvatar(row) }}</span>
+          <div class="bx-data-card__title-wrap">
+            <div class="bx-data-card__title" :title="cardTitle(row)">{{ cardTitle(row) }}</div>
+            <div v-if="row.id != null" class="bx-data-card__id">#{{ row.id }}</div>
+          </div>
+        </div>
+        <div class="bx-data-card__body">
+          <div v-for="col in bodyCols" :key="col.prop" class="bx-data-card__field">
+            <span class="bx-data-card__label">{{ col.label }}</span>
+            <span class="bx-data-card__value">
+              <template v-if="col.type === 'dictTag'">
+                <el-tag
+                  v-if="matchOption(col, row)"
+                  :type="tagTypeOf(matchOption(col, row))"
+                  disable-transitions
+                >
+                  {{ matchOption(col, row)!.label }}
+                </el-tag>
+                <span v-else>{{ row[col.prop] }}</span>
+              </template>
+              <el-switch
+                v-else-if="col.type === 'switch'"
+                :model-value="row[col.prop]"
+                :active-value="col.activeValue ?? 1"
+                :inactive-value="col.inactiveValue ?? 0"
+                :disabled="!canToggle(col)"
+                @change="(v: string | number | boolean) => onStatusChange(col, row, v)"
+              />
+              <slot v-else-if="col.type === 'slot'" :name="col.slot ?? col.prop" :row="row" />
+              <span v-else>{{ row[col.prop] }}</span>
+            </span>
+          </div>
+        </div>
+        <div v-if="config.rowActions?.length" class="bx-data-card__foot">
+          <template v-for="act in config.rowActions" :key="act.emit">
+            <el-button
+              v-if="!act.show || act.show(row)"
+              v-permission="act.perm"
+              link
+              :type="act.type ?? 'primary'"
+              size="small"
+              @click="onAction(act, row)"
+            >
+              {{ act.label }}
+            </el-button>
+          </template>
+        </div>
+      </div>
+    </div>
+
     <!-- 分页（树形无分页） -->
     <div v-if="!config.tree" class="mt-3 flex justify-end">
       <el-pagination
@@ -317,3 +423,95 @@ fetchData()
     </div>
   </div>
 </template>
+
+<style scoped>
+/* —— 卡片视图（Bento 风网格，跟随主题 token）—— */
+.bx-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+.bx-card-grid .el-empty {
+  grid-column: 1 / -1;
+}
+.bx-data-card {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+  background: var(--bx-card-bg);
+  border: 1px solid var(--bx-card-border);
+  border-radius: var(--bx-card-radius);
+  box-shadow: var(--bx-card-shadow);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.bx-data-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.1);
+}
+.bx-data-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bx-data-card__avatar {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--bx-color-primary);
+}
+.bx-data-card__title-wrap {
+  min-width: 0;
+  flex: 1;
+}
+.bx-data-card__title {
+  font-weight: 600;
+  color: var(--bx-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bx-data-card__id {
+  font-size: 12px;
+  color: var(--bx-text-tertiary);
+}
+.bx-data-card__body {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bx-data-card__field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+.bx-data-card__label {
+  color: var(--bx-text-secondary);
+  flex-shrink: 0;
+}
+.bx-data-card__value {
+  color: var(--bx-text-primary);
+  text-align: right;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bx-data-card__foot {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--bx-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+</style>
