@@ -1,32 +1,40 @@
-# BenXinAdmin · benxin-admin-web（管理后台前端）
+# BenXinAdmin · 管理后台前端（benxin-admin-web）
 
-BenXinAdmin 管理后台的前端工程。技术栈：Vue 3.5 + TypeScript + Vite 8、Element Plus（按需自动导入）、Pinia、Vue Router、UnoCSS、vue-i18n、Axios（统一封装，业务码风格 A）。
+> [BenXinAdmin](https://gitee.com/binxin-admin/binxin-admin-server) 通用管理后台底座的**配套后台前端**。开源协议：**Apache-2.0**。
 
-> 阶段：M0-B 脚手架 —— 可运行骨架 + 与后端 `GET /admin/v1/ping` 联调。动态路由 / 鉴权 / 按钮级权限 / 多标签页 / 主题切换等留待 M1。
+技术栈：Vue **3.5** + TypeScript + Vite + Element Plus（按需自动导入）+ Pinia + Vue Router + UnoCSS + Axios（统一封装，业务码风格 A）。
 
-## 环境要求
+## 特性
 
-- Node 24+
-- 后端本地服务（`php think run -p 8801`，默认 `http://127.0.0.1:8801`）；前端按 `code===0` 判定业务成功。
+- **动态路由**：菜单从后端 `profile` 拉取，`import.meta.glob` 映射页面组件。
+- **按钮级权限**：`v-permission` 指令，与后端 Casbin enforce 同源。
+- **401 分流**：401003 access 过期**单飞 refresh 静默续期重试**，401001/401004 跳登录清会话。
+- **配置化 CRUD**：`XTable`（列表/搜索/分页/行操作）+ `XFormDrawer`（编辑表单）+ 分配菜单树形弹窗——即代码生成器前端产物的黄金样板。
+
+<!-- 截图占位：登录页 / 菜单管理 / 角色分配菜单 -->
+
+## 快速开始
+
+```sh
+npm install
+cp .env.example .env.development   # 配后端地址（默认 http://127.0.0.1:8801/admin）
+npm run dev                        # 开发（热更新）
+npm run build                      # 类型检查 + 生产构建
+```
+
+- Node 24+；后端先起（`php think run -p 8801`，见[后端仓](https://gitee.com/binxin-admin/binxin-admin-server)）。
+- 前端按 `code===0` 判定业务成功；`.env*` 已忽略，勿入库。
 
 ## 环境变量
 
-复制 `.env.example` 为 `.env.development`（已被 `.gitignore` 忽略，勿入库），按本地后端端口调整：
-
 ```sh
-VITE_API_BASE=http://127.0.0.1:8000/admin
-```
-
-## 常用命令
-
-```sh
-npm install      # 安装依赖
-npm run dev      # 启动开发服务器（热更新）
-npm run build    # 类型检查 + 生产构建
-npm run lint     # oxlint + eslint（--fix）
-npm run format   # prettier 格式化 src/
+VITE_API_BASE=http://127.0.0.1:8801/admin
 ```
 
 ## 目录骨架（`src/`）
 
-`api/`（接口调用，OpenAPI 自动生成留待 M1）、`components/`（含 XTable 配置化 CRUD 组件，M1）、`directives/`（`v-permission` 按钮级权限，M1）、`layouts/`（含多标签页，M1）、`locales/`（i18n，初期仅中文）、`router/`（M1 动态路由）、`stores/`（Pinia）、`utils/`（Axios 封装等）、`types/`（unplugin 自动生成的类型声明）。
+`api/`（接口调用）、`components/`（XTable / XFormDrawer / XEditor / XUpload 等配置化组件）、`directives/`（`v-permission`）、`layouts/`、`router/`（动态路由）、`stores/`（Pinia）、`utils/`（Axios 封装 / 主题）、`types/`（自动生成类型声明）。
+
+## 许可证
+
+[Apache-2.0](LICENSE)。完整文档见[后端主仓](https://gitee.com/binxin-admin/binxin-admin-server) `docs/ARCHITECTURE.md`。
