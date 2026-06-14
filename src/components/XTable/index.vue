@@ -264,7 +264,7 @@ fetchData()
       v-if="config.toolbar?.create || !config.tree"
       class="mb-3 flex items-center justify-between"
     >
-      <div>
+      <div class="flex items-center gap-2">
         <el-button
           v-if="config.toolbar?.create"
           v-permission="config.toolbar.create.perm"
@@ -273,6 +273,8 @@ fetchData()
         >
           {{ config.toolbar.create.label ?? '新增' }}
         </el-button>
+        <!-- 额外工具栏按钮（手工槽：只读页清理 / 导出 / 退款等模块特化动作）-->
+        <slot name="toolbar" />
       </div>
       <el-radio-group
         v-if="!config.tree"
