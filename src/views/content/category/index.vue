@@ -69,6 +69,7 @@ const formConfig: XFormDrawerConfig = {
       prop: 'parent_id',
       label: '父级内容分类',
       type: 'treeSelect',
+      treeProps: { label: 'name' },
       checkStrictly: true,
       treeData: parentTreeData,
       defaultValue: 0,
