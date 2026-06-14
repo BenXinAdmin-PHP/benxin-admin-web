@@ -7,7 +7,7 @@ BenXinAdmin 管理后台的前端工程。技术栈：Vue 3.5 + TypeScript + Vit
 ## 环境要求
 
 - Node 24+
-- 后端本地服务（`php think run`，默认 `http://127.0.0.1:8000`）；前端按 `code===0` 判定业务成功。
+- 后端本地服务（`php think run -p 8801`，默认 `http://127.0.0.1:8801`）；前端按 `code===0` 判定业务成功。
 
 ## 环境变量
 
