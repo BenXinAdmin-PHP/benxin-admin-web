@@ -12,7 +12,6 @@ import { request, type ApiEnvelope, type PageResult } from '@/utils/request'
 /** 短信日志行 */
 export interface SmsLogItem {
   id: number
-  tenant_id: number
   mobile: string
   channel: string
   scene: string

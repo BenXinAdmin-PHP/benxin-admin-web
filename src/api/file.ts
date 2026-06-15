@@ -23,7 +23,6 @@ export interface UploadResult {
 /** 文件记录行（管理列表） */
 export interface FileItem {
   id: number
-  tenant_id: number
   original_name: string
   file_name: string
   path: string

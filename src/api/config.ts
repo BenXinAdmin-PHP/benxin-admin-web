@@ -13,7 +13,6 @@ import { request, type ApiEnvelope, type PageResult } from '@/utils/request'
 /** 参数配置行 */
 export interface ConfigItem {
   id: number
-  tenant_id: number
   name: string
   group: string
   key: string

@@ -12,7 +12,6 @@ import { request, type ApiEnvelope, type PageResult } from '@/utils/request'
 /** 支付订单行（status：0待支付 1已支付 2已退款 3部分退款 4已关闭 5支付失败；amount 单位分） */
 export interface PayOrderItem {
   id: number
-  tenant_id: number
   order_no: string
   out_trade_no: string
   channel: string

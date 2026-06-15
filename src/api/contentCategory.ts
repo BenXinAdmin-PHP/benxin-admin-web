@@ -12,7 +12,6 @@ import { request, type ApiEnvelope } from '@/utils/request'
 /** 内容分类树节点（管理端全字段；children 仅在有子节点时存在） */
 export interface ContentCategoryItem {
   id: number
-  tenant_id: number
   parent_id: number
   name: string
   sort: number

@@ -12,7 +12,6 @@ import { request, type ApiEnvelope, type PageResult } from '@/utils/request'
 /** 系统公告行（列表/详情共用） */
 export interface NoticeItem {
   id: number
-  tenant_id: number
   title: string
   type: number
   content: string
