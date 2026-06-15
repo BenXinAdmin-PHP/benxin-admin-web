@@ -13,14 +13,16 @@ import service, { request, type ApiEnvelope, type PageResult } from '@/utils/req
 export const RESOURCE_VOD_NOT_READY = 422101
 
 /**
- * 服务端中转上传（A 链路）前端大小上限 MB——超此值直接前端拦截、不发注定被 PHP 限额拒的废请求。
+ * 服务端中转上传（A 链路）前端大小预判上限（MB）——超此值直接前端拦截、不发注定被 PHP 限额拒的废请求。
  *
- * ★必须与后端对齐：取 min(php.ini post_max_size, upload_max_filesize) 与素材 app 层上限(100MB)的较小值。
- *   默认 8（对齐 PHP 默认 post_max_size=8M，最保守；实际单文件还受 upload_max_filesize 默认 2M 约束）。
- *   **调大 php.ini（README「大文件上传配置」）后，请同步调大此常量。**
+ * ★必须与后端 php.ini 的 post_max_size / upload_max_filesize 两者的较小者对齐，且 ≤ server app 层
+ *   上限（素材模块 100MB）。默认 100 对齐推荐 php 配置（README「大文件上传配置」建议 ≥100M）。
+ *   若部署环境 php.ini 未调大（默认 8M/2M），应同步把此值调小到 php 实际限额，否则前端放行的文件会被
+ *   PHP 拒（仍如实报错，但多发一次废请求）。
  *   VOD 客户端直传（B 链路）走腾讯 SDK、不经 PHP，不受此限——大视频请开通 VOD。
+ *   理想方案：后端 storage-caps 能力探测接口返回实际可接受上限（server 后续候选，当前用前端常量）。
  */
-export const RESOURCE_MAX_UPLOAD_MB = 8
+export const RESOURCE_MAX_UPLOAD_MB = 100
 
 /** 素材行（列表/详情共用） */
 export interface ResourceItem {

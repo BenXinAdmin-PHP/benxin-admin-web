@@ -5,7 +5,7 @@
   | @author    仗键天涯(daxing)
   | @email     3442535897@qq.com
   | @date      2026-06-15
-  | @updated   2026-06-15（hotfix：上传失败如实报错 + 大文件前端预判拦截，杜绝假完成）
+  | @updated   2026-06-15（hotfix：失败如实报错 + 大文件预判杜绝假完成；收尾：预判上限对齐100 + 成功文案单段化）
   +----------------------------------------------------------------------
 -->
 <script setup lang="ts">
@@ -124,7 +124,10 @@ async function vodDirectUpload(file: File, mt: string, task: UploadTask) {
     category_id: props.categoryId,
     size: file.size,
   })
-  task.note = data.transcode_status === 1 || data.transcode_status === 2 ? '直传完成·转码中' : '直传完成'
+  task.note =
+    data.transcode_status === 1 || data.transcode_status === 2
+      ? '直传完成·转码中（腾讯VOD）'
+      : '直传完成（腾讯VOD）'
 }
 
 /** A 链路：服务端中转上传（本地/七牛/OSS 由后端 forMediaType 路由） */
@@ -147,6 +150,8 @@ async function serverUpload(file: File, task: UploadTask) {
     throw new Error('上传失败：服务端未确认结果（可能文件过大被服务器拒绝，请调大 php 限额或开通 VOD）')
   }
   task.channel = res.data.storage
+  // 单段成功文案（普通 local/云直传；VOD 回退 local 由调用方覆盖为「VOD 未开通，已转本地」）
+  task.note = `已上传（${channelLabel[res.data.storage] ?? res.data.storage}）`
 }
 
 function clearFinished() {
@@ -190,7 +195,7 @@ const channelLabel: Record<string, string> = {
           :stroke-width="10"
         />
         <div class="bx-up-task__meta">
-          <span v-if="t.channel">{{ channelLabel[t.channel] ?? t.channel }}</span>
+          <!-- 单段文案：成功「已上传（驱动）/VOD 未开通，已转本地/直传完成（腾讯VOD）」、失败「✗ 原因」 -->
           <span v-if="t.note" :class="{ 'bx-up-task__err': t.status === 'error' }">{{ t.note }}</span>
         </div>
       </div>
