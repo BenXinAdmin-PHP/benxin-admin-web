@@ -5,7 +5,7 @@
  * | @author    仗键天涯(daxing)
  * | @email     3442535897@qq.com
  * | @date      2026-06-08
- * | @updated   2026-06-10
+ * | @updated   2026-06-15（新增 silent 选项：调用方自处理业务码，抑制全局错误提示）
  * +----------------------------------------------------------------------
  */
 import axios, {
@@ -37,6 +37,12 @@ export interface PageResult<T = unknown> {
   page: number
   page_size: number
 }
+
+/** 扩展请求配置：silent=true 时拦截器不弹全局错误提示，业务码交调用方处理 */
+export type RequestConfig = AxiosRequestConfig & { silent?: boolean }
+
+/** 业务错误（携带后端 code，便于调用方按码分支，如 VOD 未开通 422101 回退本地） */
+export type BizError = Error & { code?: number }
 
 // 认证错误码（与后端 ErrorCode 对齐）
 const CODE_UNAUTHORIZED = 401001 // 无效/缺失 token
@@ -108,8 +114,13 @@ service.interceptors.response.use(
     if (envelope.code === 0) {
       return envelope as unknown as AxiosResponse
     }
-    ElMessage.error(envelope.msg || `请求失败（code=${envelope.code}）`)
-    return Promise.reject(new Error(envelope.msg || `business error: ${envelope.code}`))
+    // silent：调用方自行处理业务码（如 VOD 未开通 422101 静默回退本地），不弹全局提示
+    if (!(response.config as RequestConfig).silent) {
+      ElMessage.error(envelope.msg || `请求失败（code=${envelope.code}）`)
+    }
+    const bizErr = new Error(envelope.msg || `business error: ${envelope.code}`) as BizError
+    bizErr.code = envelope.code
+    return Promise.reject(bizErr)
   },
   async (error) => {
     const status = error?.response?.status
@@ -158,7 +169,9 @@ service.interceptors.response.use(
     }
 
     const msg = error?.response?.data?.msg || error?.message || '网络异常，请稍后重试'
-    ElMessage.error(msg)
+    if (!(error?.config as RequestConfig | undefined)?.silent) {
+      ElMessage.error(msg)
+    }
     return Promise.reject(error)
   },
 )
@@ -166,7 +179,7 @@ service.interceptors.response.use(
 /**
  * 业务请求统一入口：成功时直接拿到信封（code===0），失败已在拦截器抛出。
  */
-export function request<T = unknown>(config: AxiosRequestConfig): Promise<ApiEnvelope<T>> {
+export function request<T = unknown>(config: RequestConfig): Promise<ApiEnvelope<T>> {
   return service(config) as unknown as Promise<ApiEnvelope<T>>
 }
 

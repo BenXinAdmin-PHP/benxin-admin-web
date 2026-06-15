@@ -115,6 +115,8 @@ export interface XTableConfig {
   api: XTableApi
   /** 行主键，默认 'id' */
   rowKey?: string
+  /** 多选：表格视图加勾选列、卡片视图加勾选框；选中行经 @selection-change 抛出，供批量操作（如批量删） */
+  selection?: boolean
   /** 树形 table：api.list 返回整树、不渲染分页与搜索折叠 */
   tree?: boolean
   /** 树形子节点字段，默认 'children' */
