@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 后台不应被搜索引擎收录（生产侧建议再叠加 Nginx X-Robots-Tag / robots.txt 加固） -->
+    <meta name="robots" content="noindex, nofollow" />
     <title>BenXinAdmin 管理后台</title>
     <!-- 首屏防闪：app 挂载前从 localStorage 读取主题/明暗，先行设置 <html> 属性，避免闪白 -->
     <script>
