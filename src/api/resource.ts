@@ -12,6 +12,16 @@ import service, { request, type ApiEnvelope, type PageResult } from '@/utils/req
 /** VOD 未开通错误码（后端 ErrorCode::RESOURCE_VOD_NOT_READY，前端据此回退本地上传） */
 export const RESOURCE_VOD_NOT_READY = 422101
 
+/**
+ * 服务端中转上传（A 链路）前端大小上限 MB——超此值直接前端拦截、不发注定被 PHP 限额拒的废请求。
+ *
+ * ★必须与后端对齐：取 min(php.ini post_max_size, upload_max_filesize) 与素材 app 层上限(100MB)的较小值。
+ *   默认 8（对齐 PHP 默认 post_max_size=8M，最保守；实际单文件还受 upload_max_filesize 默认 2M 约束）。
+ *   **调大 php.ini（README「大文件上传配置」）后，请同步调大此常量。**
+ *   VOD 客户端直传（B 链路）走腾讯 SDK、不经 PHP，不受此限——大视频请开通 VOD。
+ */
+export const RESOURCE_MAX_UPLOAD_MB = 8
+
 /** 素材行（列表/详情共用） */
 export interface ResourceItem {
   id: number

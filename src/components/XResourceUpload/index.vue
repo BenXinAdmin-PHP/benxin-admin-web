@@ -5,6 +5,7 @@
   | @author    仗键天涯(daxing)
   | @email     3442535897@qq.com
   | @date      2026-06-15
+  | @updated   2026-06-15（hotfix：上传失败如实报错 + 大文件前端预判拦截，杜绝假完成）
   +----------------------------------------------------------------------
 -->
 <script setup lang="ts">
@@ -12,6 +13,7 @@ import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
 import {
+  RESOURCE_MAX_UPLOAD_MB,
   RESOURCE_VOD_NOT_READY,
   guessMediaType,
   humanSize,
@@ -86,8 +88,10 @@ async function uploadVideoOrAudio(file: File, mt: string, task: UploadTask) {
     await vodUploadSign({ media_type: mt, file_name: file.name }, true)
   } catch (e) {
     if ((e as BizError)?.code === RESOURCE_VOD_NOT_READY) {
-      task.note = 'VOD 未开通，已转本地'
+      // 仅代表「链路切换」，不代表成功——仍须走完真实本地上传并如实反馈结果
+      task.note = 'VOD 未开通，转本地上传中…'
       await serverUpload(file, task)
+      task.note = 'VOD 未开通，已转本地'
       return
     }
     throw e // 其他错误（网络等）如实抛出
@@ -125,10 +129,24 @@ async function vodDirectUpload(file: File, mt: string, task: UploadTask) {
 
 /** A 链路：服务端中转上传（本地/七牛/OSS 由后端 forMediaType 路由） */
 async function serverUpload(file: File, task: UploadTask) {
-  const { data } = await uploadResource(file, props.categoryId, (p) => {
+  // ① 大小预判（丙）：超本地上限直接拦截、不发注定被 PHP 限额拒的废请求
+  if (file.size > RESOURCE_MAX_UPLOAD_MB * 1024 * 1024) {
+    const isAV = ['video', 'audio'].includes(guessMediaType(file.name))
+    throw new Error(
+      `文件 ${humanSize(file.size)} 超过服务端上传上限 ${RESOURCE_MAX_UPLOAD_MB}MB，` +
+        (isAV ? '请开通 VOD 后上传大视频，或压缩后重传' : '请压缩后重传'),
+    )
+  }
+
+  // ② 真实上传 + 如实校验结果：仅当后端确认 code=0 且回填记录 id 才算成功；
+  //    否则（文件超 php 限额被服务器在进 app 前拒 / 响应非标准信封）一律失败，★绝不假完成
+  const res = await uploadResource(file, props.categoryId, (p) => {
     task.percent = p
   })
-  task.channel = data.storage
+  if (!res || res.code !== 0 || !res.data?.id) {
+    throw new Error('上传失败：服务端未确认结果（可能文件过大被服务器拒绝，请调大 php 限额或开通 VOD）')
+  }
+  task.channel = res.data.storage
 }
 
 function clearFinished() {
