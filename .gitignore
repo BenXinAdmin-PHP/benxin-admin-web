@@ -15,3 +15,7 @@ pnpm-debug.log*
 .vscode/*
 !.vscode/extensions.json
 .DS_Store
+
+# TypeScript / Vite build info
+*.tsbuildinfo
+*.timestamp-*-*.mjs
