@@ -12,7 +12,6 @@ import { request, type ApiEnvelope, type PageResult } from '@/utils/request'
 /** 登录日志行 */
 export interface LoginLogItem {
   id: number
-  tenant_id: number
   username: string
   admin_id: number
   ip: string

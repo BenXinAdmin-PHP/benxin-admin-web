@@ -12,7 +12,6 @@ import { request, type ApiEnvelope, type PageResult } from '@/utils/request'
 /** 短信模板行（列表/详情共用） */
 export interface SmsTemplateItem {
   id: number
-  tenant_id: number
   scene: string
   channel: string
   template_code: string

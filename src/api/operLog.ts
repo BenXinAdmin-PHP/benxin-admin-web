@@ -12,7 +12,6 @@ import { request, type ApiEnvelope, type PageResult } from '@/utils/request'
 /** 操作日志行 */
 export interface OperLogItem {
   id: number
-  tenant_id: number
   admin_id: number
   username: string
   method: string

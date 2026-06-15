@@ -13,7 +13,6 @@ import { request, type ApiEnvelope, type PageResult } from '@/utils/request'
 /** 管理员行（列表/详情共用；输出不含 password；详情额外带 role_ids/post_ids） */
 export interface AdminItem {
   id: number
-  tenant_id: number
   username: string
   nickname: string
   avatar: string

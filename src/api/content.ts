@@ -12,7 +12,6 @@ import { request, type ApiEnvelope, type PageResult } from '@/utils/request'
 /** 内容行（列表/详情共用） */
 export interface ContentItem {
   id: number
-  tenant_id: number
   category_id: number
   title: string
   cover: string

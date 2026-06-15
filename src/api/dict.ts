@@ -31,7 +31,6 @@ export function getDictByType(type: string): Promise<ApiEnvelope<DictDataItem[]>
 /** 字典类型行 */
 export interface DictItem {
   id: number
-  tenant_id: number
   name: string
   type: string
   status: number
@@ -75,7 +74,6 @@ export function setDictStatus(id: number, status: number): Promise<ApiEnvelope<D
 /** 字典数据项行（管理视图，全字段） */
 export interface DictDataRow {
   id: number
-  tenant_id: number
   dict_type: string
   label: string
   value: string

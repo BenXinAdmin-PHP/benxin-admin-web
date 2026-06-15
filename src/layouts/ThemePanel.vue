@@ -48,7 +48,7 @@ const { theme, mode, setTheme, setMode, THEME_OPTIONS } = useTheme()
       <div class="mb-2 text-sm font-600" :style="{ color: 'var(--bx-text-primary)' }">外观模式</div>
       <el-radio-group
         :model-value="mode"
-        @update:model-value="(v: string | number | boolean) => setMode(v as 'light' | 'dark')"
+        @update:model-value="(v: string | number | boolean | undefined) => setMode(v as 'light' | 'dark')"
       >
         <el-radio-button value="light">
           <el-icon class="mr-1"><Sunny /></el-icon>明亮

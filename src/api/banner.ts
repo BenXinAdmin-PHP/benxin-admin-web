@@ -12,7 +12,6 @@ import { request, type ApiEnvelope, type PageResult } from '@/utils/request'
 /** 广告位行（列表/详情共用） */
 export interface BannerItem {
   id: number
-  tenant_id: number
   title: string
   image: string
   link: string

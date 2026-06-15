@@ -1,11 +1,11 @@
 <!--
   +----------------------------------------------------------------------
   | @project   BenXinAdmin
-  | @mission   XTable 配置化表格（搜索 + 列表/树形 + 分页 + 工具栏 + 表格/卡片双视图 + 操作列 + v-permission）
+  | @mission   XTable 配置化表格（搜索 + 列表/树形 + 分页 + 工具栏 + 表格/卡片双视图 + 多选 + 操作列 + v-permission）
   | @author    仗键天涯(daxing)
   | @email     3442535897@qq.com
   | @date      2026-06-10
-  | @updated   2026-06-14
+  | @updated   2026-06-15
   +----------------------------------------------------------------------
 -->
 <script setup lang="ts">
@@ -22,6 +22,8 @@ const props = defineProps<{ config: XTableConfig }>()
 const emit = defineEmits<{
   /** 工具栏/操作列动作：create（row 为 null）/ edit / assign / 自定义；remove 由内建处理不抛出 */
   action: [name: string, row: Row | null]
+  /** 多选变更：抛当前选中行（config.selection 时启用，供批量操作消费） */
+  'selection-change': [rows: Row[]]
 }>()
 
 const userStore = useUserStore()
@@ -118,7 +120,36 @@ function reload(reset = false) {
   fetchData()
 }
 
-defineExpose({ reload })
+// ---- 多选（config.selection；表格勾选列 + 卡片勾选框，单一选中源 selectedRows）----
+const tableElRef = ref()
+const selectedRows = ref<Row[]>([])
+
+function onTableSelectionChange(rows: Row[]) {
+  selectedRows.value = rows
+  emit('selection-change', rows)
+}
+
+function isRowSelected(row: Row): boolean {
+  return selectedRows.value.some((r) => r[rowKey] === row[rowKey])
+}
+
+function toggleRow(row: Row, checked: boolean) {
+  if (checked) {
+    if (!isRowSelected(row)) selectedRows.value = [...selectedRows.value, row]
+  } else {
+    selectedRows.value = selectedRows.value.filter((r) => r[rowKey] !== row[rowKey])
+  }
+  emit('selection-change', selectedRows.value)
+}
+
+/** 清空选中（批量操作完成后调用；同步清表格内建勾选态） */
+function clearSelection() {
+  selectedRows.value = []
+  tableElRef.value?.clearSelection?.()
+  emit('selection-change', [])
+}
+
+defineExpose({ reload, clearSelection })
 
 // ---- 视图模式（表格 / 卡片）：一份 config 驱动两种渲染，存 localStorage（全局默认）----
 // 树形列表强制表格（层级缩进卡片化无意义）；切换不改任何单页 DOM、不影响生成器基线。
@@ -128,6 +159,11 @@ const effectiveView = computed<'table' | 'card'>(() => (config.tree ? 'table' : 
 function setView(v: 'table' | 'card') {
   viewMode.value = v
   localStorage.setItem(STORAGE_VIEW, v)
+  // 切换视图清空选中（两视图选中态各自独立、避免错配）
+  if (config.selection) {
+    selectedRows.value = []
+    emit('selection-change', [])
+  }
 }
 
 // 卡片字段映射：主字段（name/title 优先，否则首个非 id 文本列）作标题，其余列作明细，操作沿用 rowActions
@@ -279,7 +315,7 @@ fetchData()
       <el-radio-group
         v-if="!config.tree"
         :model-value="effectiveView"
-        @update:model-value="(v: string | number | boolean) => setView(v as 'table' | 'card')"
+        @update:model-value="(v: string | number | boolean | undefined) => setView(v as 'table' | 'card')"
       >
         <el-radio-button value="table" title="表格视图">
           <el-icon><List /></el-icon>
@@ -293,6 +329,7 @@ fetchData()
     <!-- 表格视图（平铺/树形共用；树形走 row-key + tree-props 缩进展开） -->
     <el-table
       v-if="effectiveView === 'table'"
+      ref="tableElRef"
       v-loading="loading"
       :data="rows"
       :row-key="rowKey"
@@ -300,7 +337,9 @@ fetchData()
       :tree-props="{ children: config.childrenKey ?? 'children' }"
       border
       stripe
+      @selection-change="onTableSelectionChange"
     >
+      <el-table-column v-if="config.selection" type="selection" width="48" align="center" reserve-selection />
       <el-table-column
         v-for="col in config.columns"
         :key="col.prop"
@@ -361,6 +400,12 @@ fetchData()
       <el-empty v-if="!rows.length" description="暂无数据" />
       <div v-for="row in rows" :key="String(row[rowKey])" class="bx-data-card">
         <div class="bx-data-card__head">
+          <el-checkbox
+            v-if="config.selection"
+            :model-value="isRowSelected(row)"
+            class="bx-data-card__check"
+            @change="(v: string | number | boolean | undefined) => toggleRow(row, !!v)"
+          />
           <span class="bx-data-card__avatar">{{ cardAvatar(row) }}</span>
           <div class="bx-data-card__title-wrap">
             <div class="bx-data-card__title" :title="cardTitle(row)">{{ cardTitle(row) }}</div>
