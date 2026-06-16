@@ -6,6 +6,7 @@
  * | @email     3442535897@qq.com
  * | @date      2026-06-08
  * | @updated   2026-06-15（新增 silent 选项：调用方自处理业务码，抑制全局错误提示）
+ * | @updated   2026-06-16（响应拦截器识别「非标准响应」为失败：2xx 但拿不到合法数字 code 的脏 JSON/HTML 污染/网关错误页统一 reject，不再透传为成功；二进制流按 responseType 前置放行）
  * +----------------------------------------------------------------------
  */
 import axios, {
@@ -104,23 +105,47 @@ async function doRefresh(): Promise<string | null> {
   }
 }
 
-// 响应拦截：先判 HTTP，再判业务码 code
+// 响应拦截：按「二进制流 → JSON 信封 → 非标准响应」顺序判定（前置条件先判，避免误伤）
 service.interceptors.response.use(
   (response: AxiosResponse<ApiEnvelope>) => {
-    const envelope = response.data
-    if (envelope == null || typeof envelope.code === 'undefined') {
+    const config = response.config as RequestConfig
+
+    // ① 二进制流（blob/arraybuffer）：在 JSON 信封判断之前按 responseType 放行。
+    //    返回完整 AxiosResponse，消费方读 resp.data（如 resolvePreviewUrl 取 Blob 预览）；
+    //    其失败由 HTTP 状态分支（error handler）兜底，不套 {code} 判断。
+    const responseType = config.responseType
+    if (responseType === 'blob' || responseType === 'arraybuffer') {
       return response
     }
-    if (envelope.code === 0) {
-      return envelope as unknown as AxiosResponse
+
+    // ② HTTP 状态非 2xx 不会进入此成功分支（axios 默认 validateStatus = 2xx），
+    //    含 413/502 等返回 HTML 的情况统一由下方 error handler reject。
+
+    // ③ 期望 JSON 信封：
+    const envelope = response.data
+    // a. 合法对象且含数字型 code —— 走既有成功 / 业务错误语义（不改变）
+    if (envelope != null && typeof envelope === 'object' && typeof envelope.code === 'number') {
+      if (envelope.code === 0) {
+        return envelope as unknown as AxiosResponse
+      }
+      // silent：调用方自行处理业务码（如 VOD 未开通 422101 静默回退本地），不弹全局提示
+      if (!config.silent) {
+        ElMessage.error(envelope.msg || `请求失败（code=${envelope.code}）`)
+      }
+      const bizErr = new Error(envelope.msg || `business error: ${envelope.code}`) as BizError
+      bizErr.code = envelope.code
+      return Promise.reject(bizErr)
     }
-    // silent：调用方自行处理业务码（如 VOD 未开通 422101 静默回退本地），不弹全局提示
-    if (!(response.config as RequestConfig).silent) {
-      ElMessage.error(envelope.msg || `请求失败（code=${envelope.code}）`)
+
+    // b. ★核心修复：2xx 但拿不到合法数字型 code（脏 JSON / HTML 污染 / 空体 / 网关错误页）
+    //    → 识别为「非标准响应」，统一 reject，绝不把脏内容当 data 透传为成功。
+    //    silent 只抑制全局提示 UI，不改变失败判定——非标准响应即便 silent 也是失败（交调用方）。
+    if (!config.silent) {
+      ElMessage.error('服务端返回异常响应（可能被错误信息污染或网关异常）')
     }
-    const bizErr = new Error(envelope.msg || `business error: ${envelope.code}`) as BizError
-    bizErr.code = envelope.code
-    return Promise.reject(bizErr)
+    return Promise.reject(
+      new Error('非标准响应：服务端返回内容无法解析为业务信封（可能被 PHP 警告/错误信息污染或网关错误页）'),
+    )
   },
   async (error) => {
     const status = error?.response?.status
