@@ -5,6 +5,7 @@
  * | @author    仗键天涯(daxing)
  * | @email     3442535897@qq.com
  * | @date      2026-06-14
+ * | @updated   2026-06-16（新增 listConfigGroups：去重分组+计数，供配置页顶栏 Tab 分类）
  * +----------------------------------------------------------------------
  * 敏感项（is_sensitive=1）后端回显脱敏为 ****；更新时若提交 **** 则后端保留原值。
  */
@@ -23,6 +24,17 @@ export interface ConfigItem {
   sort: number
   created_at: string | null
   updated_at: string | null
+}
+
+/** 去重分组 + 各组配置数（供配置页顶栏 Tab 分类） */
+export interface ConfigGroupCount {
+  group: string
+  count: number
+}
+
+/** GET /admin/v1/configs/groups —— 去重分组列表（含各组配置数；仅组名非敏感） */
+export function listConfigGroups(): Promise<ApiEnvelope<ConfigGroupCount[]>> {
+  return request<ConfigGroupCount[]>({ url: '/v1/configs/groups', method: 'get' })
 }
 
 /** GET /admin/v1/configs —— 分页列表（group/keyword 筛选；敏感脱敏） */
