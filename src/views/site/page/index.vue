@@ -5,6 +5,7 @@
   | @author    仗键天涯(daxing)
   | @email     3442535897@qq.com
   | @date      2026-06-17
+  | @updated   2026-06-18（B1-③：已发布页「查看官网页面」live-link，新标签直达官网）
   +----------------------------------------------------------------------
   最小管理：XTable 列表 + XFormDrawer 新建弹窗（slug/title/status，注入起始 hero 块）。
   内容编辑走「编辑」进搭建器 builder（消费 M6-B 详情/整页 PUT）；状态开关复用 PUT 选择性更新。
@@ -24,6 +25,14 @@ const STATUS_OPTIONS: OptionItem[] = [
   { label: '草稿', value: 0, tagType: 'info' },
   { label: '已发布', value: 1, tagType: 'success' },
 ]
+
+/** 官网公开基址（去尾斜杠）；未配置时为空串，live-link 随之隐藏（兜底不报错，B1-③）。 */
+const siteBase = (import.meta.env.VITE_SITE_BASE || '').replace(/\/+$/, '')
+
+/** 已发布页官网 URL：home 的 canonical 在根 `/`（与 B1-② /home→301 语义对齐），其余 `${base}/<slug>`。 */
+function siteUrlOf(row: Row): string {
+  return row.slug === 'home' ? `${siteBase}/` : `${siteBase}/${row.slug}`
+}
 
 /** 新建：注入一个合法的起始 hero 块（必填 i18n 给占位中文，过后端 validateBlocks），
  *  内容随后在搭建器细编。slug/title/status 由抽屉收集。 */
@@ -71,6 +80,13 @@ const config: XTableConfig = {
   toolbar: { create: { perm: 'system:page:save', label: '新建页面' } },
   rowActions: [
     { label: '编辑', emit: 'builder', perm: 'system:page:list' },
+    // live-link：仅已发布页（status=1）且配置了官网基址时出现，新标签直达官网真实渲染（B1-③）
+    {
+      label: '查看官网页面',
+      emit: 'viewSite',
+      perm: 'system:page:list',
+      show: (row: Row) => row.status === 1 && !!siteBase,
+    },
     { label: '删除', emit: 'remove', perm: 'system:page:delete', type: 'danger', confirm: true },
   ],
 }
@@ -107,6 +123,9 @@ function onAction(name: string, row: Row | null) {
     drawerRef.value?.open('create')
   } else if (name === 'builder' && row) {
     router.push({ path: '/site/page/builder', query: { id: row.id } })
+  } else if (name === 'viewSite' && row) {
+    // 新标签打开官网该页；rel 经 noopener,noreferrer 切断 opener 反向引用（安全）
+    window.open(siteUrlOf(row), '_blank', 'noopener,noreferrer')
   }
 }
 </script>

@@ -6,6 +6,7 @@
  * | @email     3442535897@qq.com
  * | @date      2026-06-08
  * | @updated   2026-06-12（M4-A：@wangeditor/editor-for-vue 类型 shim）
+ * | @updated   2026-06-18（B1-③：VITE_SITE_BASE 官网基址）
  * +----------------------------------------------------------------------
  */
 /// <reference types="vite/client" />
@@ -13,6 +14,8 @@
 interface ImportMetaEnv {
   /** 后端 admin 前缀基础地址，如 http://127.0.0.1:8000/admin */
   readonly VITE_API_BASE: string
+  /** 官网公开基址，供页面列表「查看官网页面」live-link 拼 ${SITE_BASE}/<slug>（B1-③）；未配置时隐藏 link */
+  readonly VITE_SITE_BASE: string
 }
 
 interface ImportMeta {
