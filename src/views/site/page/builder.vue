@@ -5,7 +5,7 @@
   | @author    仗键天涯(daxing)
   | @email     3442535897@qq.com
   | @date      2026-06-17
-  | @updated   2026-06-19 14:00:00
+  | @updated   2026-06-20 10:00:00
   +----------------------------------------------------------------------
   消费 M6-B admin system:page:* 接口：进入 GET 详情载入原始 blocks，整页 PUT 保存。
   左=块类型面板、中=画布纵向区块流（vue-draggable-plus 排序 + 上移/下移/复制/删除/选中）、
@@ -53,16 +53,15 @@ const saving = ref(false)
 const dirty = ref(false)
 const isLoaded = ref(false)
 
-// 右栏录入语言 / 画布预览语言（独立，§5.3 + §6）
+// 右栏录入语言（i18n 字段中/英 Tab，与查看语言正交）独立于预览语言（§5.3 + §6）
 const editLang = ref<'zh' | 'en'>('zh')
+// 预览语言（所见即所得，B-增强-①）：同时驱动「画布迷你预览」与「/preview 跨源完整预览」，唯一一处控件。
 const previewLang = ref<'zh' | 'en'>('zh')
 provide('builderEditLang', editLang)
 
 // ---- 草稿预览（跨源 postMessage 发送端，B2-② / ADR-25）----
 // 官网公开基址（去尾斜杠，复用 B1-③ VITE_SITE_BASE 口径）；未配置时为空串 → 预览按钮禁用、零副作用。
 const siteBase = (import.meta.env.VITE_SITE_BASE || '').replace(/\/+$/, '')
-// 弹窗预览语言（默认跟随当前编辑语言 Tab；与画布 previewLang 解耦，可分别看中/英真实站点）。
-const popupLang = ref<'zh' | 'en'>(editLang.value)
 
 /**
  * 点「预览」：window.open 打开官网 /preview，与之完成跨源 postMessage 握手——
@@ -86,7 +85,7 @@ function openPreview() {
         {
           type: 'preview-data',
           blocks: serializeBlocksForSave(blocks.value),
-          lang: popupLang.value,
+          lang: previewLang.value,
         },
         siteBase, // targetOrigin 锁 siteBase，绝不 '*'
       )
@@ -247,12 +246,16 @@ onBeforeRouteLeave(async () => {
           active-text="发布"
           inactive-text="草稿"
         />
-        <!-- 草稿预览：选语言 → 开官网 /preview 跨源握手推当前编辑态（B2-②） -->
-        <template v-if="siteBase">
-          <el-select v-model="popupLang" size="default" class="bx-preview-lang">
+        <!-- 预览语言（所见即所得，B-增强-①）：唯一控件，同时驱动画布迷你预览与 /preview 跨源完整预览 -->
+        <div class="bx-preview-lang-field">
+          <span class="bx-preview-lang-label">预览语言</span>
+          <el-select v-model="previewLang" size="default" class="bx-preview-lang">
             <el-option label="中文" value="zh" />
             <el-option label="English" value="en" />
           </el-select>
+        </div>
+        <!-- 草稿预览：开官网 /preview 跨源握手推当前编辑态（按预览语言，B2-②） -->
+        <template v-if="siteBase">
           <el-button :icon="View" @click="openPreview">预览</el-button>
         </template>
         <el-tooltip v-else content="未配置官网地址（VITE_SITE_BASE）" placement="bottom">
@@ -294,13 +297,6 @@ onBeforeRouteLeave(async () => {
       <div class="bx-col bx-col-canvas">
         <div class="bx-canvas-bar">
           <span class="bx-col-title">画布（{{ blocks.length }} 个区块）</span>
-          <div class="bx-canvas-lang">
-            <span>预览语言</span>
-            <el-radio-group v-model="previewLang" size="small">
-              <el-radio-button value="zh">中</el-radio-button>
-              <el-radio-button value="en">英</el-radio-button>
-            </el-radio-group>
-          </div>
         </div>
 
         <el-empty v-if="blocks.length === 0" description="从左侧添加第一个区块" />
@@ -402,6 +398,16 @@ onBeforeRouteLeave(async () => {
   font-size: 13px;
   color: var(--bx-text-secondary);
 }
+.bx-preview-lang-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bx-preview-lang-label {
+  font-size: 13px;
+  color: var(--bx-text-secondary);
+  white-space: nowrap;
+}
 .bx-preview-lang {
   width: 104px;
 }
@@ -463,13 +469,6 @@ onBeforeRouteLeave(async () => {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
-}
-.bx-canvas-lang {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--bx-text-secondary);
 }
 .bx-canvas-list {
   display: flex;
