@@ -5,6 +5,7 @@
   | @author    仗键天涯(daxing)
   | @email     3442535897@qq.com
   | @date      2026-06-17
+  | @updated   2026-06-19 14:00:00
   +----------------------------------------------------------------------
   消费 M6-B admin system:page:* 接口：进入 GET 详情载入原始 blocks，整页 PUT 保存。
   左=块类型面板、中=画布纵向区块流（vue-draggable-plus 排序 + 上移/下移/复制/删除/选中）、
@@ -15,7 +16,7 @@
 import { computed, provide, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, ArrowUp, Back, CopyDocument, Delete, Rank } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, Back, CopyDocument, Delete, Rank, View } from '@element-plus/icons-vue'
 import * as EpIcons from '@element-plus/icons-vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import { getPage, updatePage, type Block } from '@/api/page'
@@ -56,6 +57,54 @@ const isLoaded = ref(false)
 const editLang = ref<'zh' | 'en'>('zh')
 const previewLang = ref<'zh' | 'en'>('zh')
 provide('builderEditLang', editLang)
+
+// ---- 草稿预览（跨源 postMessage 发送端，B2-② / ADR-25）----
+// 官网公开基址（去尾斜杠，复用 B1-③ VITE_SITE_BASE 口径）；未配置时为空串 → 预览按钮禁用、零副作用。
+const siteBase = (import.meta.env.VITE_SITE_BASE || '').replace(/\/+$/, '')
+// 弹窗预览语言（默认跟随当前编辑语言 Tab；与画布 previewLang 解耦，可分别看中/英真实站点）。
+const popupLang = ref<'zh' | 'en'>(editLang.value)
+
+/**
+ * 点「预览」：window.open 打开官网 /preview，与之完成跨源 postMessage 握手——
+ * 收到其 preview-ready（且 e.origin === siteBase）后，把当前编辑器内存态 blocks（含未保存改动，
+ * 经 serializeBlocksForSave 产出与单页接口同构的 i18n {zh,en} 数组）回发，targetOrigin 显式锁 siteBase（非 '*'）。
+ * 零 server、零 token、不持久化（守 ADR-25）。
+ */
+function openPreview() {
+  if (!siteBase) return // 禁用态已挡，双保险
+  const target = `${siteBase}/preview`
+  const w = window.open(target, '_blank')
+  if (!w) {
+    ElMessage.warning('预览窗口被浏览器拦截，请允许本站弹出窗口后重试')
+    return
+  }
+  let settled = false
+  const onMessage = (e: MessageEvent) => {
+    if (e.origin !== siteBase) return // origin 校验：仅信任官网基址来的消息
+    if (e.data?.type === 'preview-ready') {
+      w.postMessage(
+        {
+          type: 'preview-data',
+          blocks: serializeBlocksForSave(blocks.value),
+          lang: popupLang.value,
+        },
+        siteBase, // targetOrigin 锁 siteBase，绝不 '*'
+      )
+      cleanup()
+    }
+  }
+  const timer = window.setTimeout(() => {
+    cleanup()
+    ElMessage.warning('预览握手超时，请确认官网已启动且其 origin 白名单与本后台一致')
+  }, 8000)
+  function cleanup() {
+    if (settled) return
+    settled = true
+    window.removeEventListener('message', onMessage)
+    clearTimeout(timer)
+  }
+  window.addEventListener('message', onMessage)
+}
 
 const selectedFields = computed(() =>
   selectedBlock.value ? BLOCK_FORM_SCHEMA[selectedBlock.value.type] ?? [] : [],
@@ -198,6 +247,19 @@ onBeforeRouteLeave(async () => {
           active-text="发布"
           inactive-text="草稿"
         />
+        <!-- 草稿预览：选语言 → 开官网 /preview 跨源握手推当前编辑态（B2-②） -->
+        <template v-if="siteBase">
+          <el-select v-model="popupLang" size="default" class="bx-preview-lang">
+            <el-option label="中文" value="zh" />
+            <el-option label="English" value="en" />
+          </el-select>
+          <el-button :icon="View" @click="openPreview">预览</el-button>
+        </template>
+        <el-tooltip v-else content="未配置官网地址（VITE_SITE_BASE）" placement="bottom">
+          <span>
+            <el-button :icon="View" disabled>预览</el-button>
+          </span>
+        </el-tooltip>
         <el-button
           v-if="canSave"
           type="primary"
@@ -339,6 +401,9 @@ onBeforeRouteLeave(async () => {
 .bx-status-label {
   font-size: 13px;
   color: var(--bx-text-secondary);
+}
+.bx-preview-lang {
+  width: 104px;
 }
 .bx-cols {
   display: flex;
