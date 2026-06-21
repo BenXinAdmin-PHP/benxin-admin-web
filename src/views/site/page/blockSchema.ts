@@ -21,6 +21,7 @@ import type { Block } from '@/api/page'
 export type Widget =
   | 'i18n-text'
   | 'i18n-textarea'
+  | 'i18n-richtext'
   | 'text'
   | 'textarea'
   | 'i18n-list'
@@ -63,6 +64,7 @@ export const BLOCK_TYPES: BlockTypeMeta[] = [
   { type: 'badge-list', label: '技术栈', icon: 'CollectionTag' },
   { type: 'showcase', label: '截图墙', icon: 'PictureRounded' },
   { type: 'cta', label: '行动号召 CTA', icon: 'Promotion' },
+  { type: 'richtext', label: '富文本', icon: 'EditPen' },
 ]
 
 /** type → 中文名（画布/表单标题用） */
@@ -173,6 +175,8 @@ export const BLOCK_FORM_SCHEMA: Record<string, FieldDef[]> = {
     },
     { key: 'quickstart', label: '命令块', widget: 'textarea', placeholder: '可空；等宽显示' },
   ],
+  // 富文本块（ADR-27-②）：html 走 i18n {zh,en}，编辑用 XEditor builder 档；与 server BLOCK_SCHEMA['richtext'] 形状对齐。
+  richtext: [{ key: 'html', label: '富文本内容', widget: 'i18n-richtext', required: true }],
 }
 
 // ===================== 默认值生成（新增块空骨架） =====================
@@ -186,6 +190,7 @@ export function emptyFieldValue(field: FieldDef): unknown {
   switch (field.widget) {
     case 'i18n-text':
     case 'i18n-textarea':
+    case 'i18n-richtext':
       return emptyI18n()
     case 'text':
     case 'textarea':
@@ -239,7 +244,10 @@ const OMIT = Symbol('omit')
 function cleanField(field: FieldDef, value: unknown): unknown | typeof OMIT {
   switch (field.widget) {
     case 'i18n-text':
-    case 'i18n-textarea': {
+    case 'i18n-textarea':
+    case 'i18n-richtext': {
+      // richtext 的 html 也是 i18n {zh,en}（值为 HTML 字符串）；空判/收敛与普通 i18n 同口径。
+      // 真安全在 server cleanBuilderRichtext，前端不在序列化阶段净化（仅画布预览经 DOMPurify 防自伤）。
       if (isI18nEmpty(value)) return field.required ? normI18n(value) : OMIT
       return normI18n(value)
     }
@@ -311,6 +319,7 @@ function normalizeField(field: FieldDef, value: unknown): unknown {
   switch (field.widget) {
     case 'i18n-text':
     case 'i18n-textarea':
+    case 'i18n-richtext':
       return normI18n(value)
     case 'text':
     case 'textarea':

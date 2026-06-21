@@ -20,6 +20,7 @@
     "@wangeditor/editor": "^5.1.23",
     "@wangeditor/editor-for-vue": "^5.1.12",
     "axios": "^1.17.0",
+    "dompurify": "^3.4.11",
     "element-plus": "~2.14.0",
     "pinia": "^3.0.4",
     "vod-js-sdk-v6": "^1.8.0",

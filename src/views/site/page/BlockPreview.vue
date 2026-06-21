@@ -7,11 +7,15 @@
   | @date      2026-06-17
   +----------------------------------------------------------------------
   按当前预览语言（lang）解析 i18n 字段为字符串显示（空回退中文）。
-  只读预览（编辑走右栏），全部文本走 {{ }} 插值自动转义、不 v-html（§8 XSS）。
+  只读预览（编辑走右栏），普通块全部文本走 {{ }} 插值自动转义、不 v-html（§8 XSS）。
+  例外 richtext 块：内容本就是 HTML，须 v-html 才有「所见即所得」——但画布是后台编辑态、未经 server
+  净化的内存内容，故先经客户端 DOMPurify(MIT) 净化再 v-html（编辑态防自伤，镜像 ADR-27 修订① 对 /preview 的处理）；
+  真安全仍以 server cleanBuilderRichtext 为唯一权威门，DOMPurify 不替代 server。
   暗色科技风真实观感留 M6-D（Nuxt 渲染）；本组件仅后台近似预览。
 -->
 <script setup lang="ts">
 import { computed } from 'vue'
+import DOMPurify from 'dompurify'
 import type { Block } from '@/api/page'
 import type { I18nValue } from './blockSchema'
 
@@ -30,6 +34,13 @@ function pick(v: unknown): string {
 const b = computed(() => props.block)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const items = computed(() => (Array.isArray((b.value as any).items) ? (b.value as any).items : []))
+
+/** richtext 块：当前语言 HTML 经 DOMPurify 净化（编辑态防自伤）；空则返回空串走占位 */
+const richtextHtml = computed(() => {
+  if (b.value.type !== 'richtext') return ''
+  const raw = pick(b.value.html)
+  return raw ? DOMPurify.sanitize(raw) : ''
+})
 </script>
 
 <template>
@@ -117,6 +128,13 @@ const items = computed(() => (Array.isArray((b.value as any).items) ? (b.value a
       </el-button>
     </div>
     <pre v-if="String(b.quickstart || '')" class="bx-code">{{ String(b.quickstart) }}</pre>
+  </div>
+
+  <!-- richtext：HTML 内容经 DOMPurify 净化后 v-html（编辑态防自伤；真安全在 server） -->
+  <div v-else-if="b.type === 'richtext'" class="bx-pv">
+    <!-- eslint-disable-next-line vue/no-v-html -->
+    <div v-if="richtextHtml" class="bx-richtext" v-html="richtextHtml" />
+    <p v-else class="bx-body">（富文本待填）</p>
   </div>
 
   <!-- 未知块（描述符未覆盖） -->
@@ -240,6 +258,25 @@ const items = computed(() => (Array.isArray((b.value as any).items) ? (b.value a
 .bx-shot-cap {
   font-size: 13px;
   color: var(--bx-text-secondary);
+}
+.bx-richtext {
+  color: var(--bx-text-secondary);
+  line-height: 1.6;
+  word-break: break-word;
+}
+.bx-richtext :deep(img),
+.bx-richtext :deep(video) {
+  max-width: 100%;
+  height: auto;
+}
+.bx-richtext :deep(table) {
+  border-collapse: collapse;
+  max-width: 100%;
+}
+.bx-richtext :deep(td),
+.bx-richtext :deep(th) {
+  border: 1px solid var(--bx-border);
+  padding: 4px 8px;
 }
 .bx-code {
   margin: 12px 0 0;

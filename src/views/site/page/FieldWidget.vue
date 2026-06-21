@@ -14,6 +14,7 @@
 import { computed, inject, type Ref } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import { Delete, Plus, Rank } from '@element-plus/icons-vue'
+import XEditor from '@/components/XEditor/index.vue'
 import { buildObject, type FieldDef, type I18nValue } from './blockSchema'
 
 defineOptions({ name: 'FieldWidget' })
@@ -48,6 +49,12 @@ function removeItem(idx: number) {
       :rows="3"
       :placeholder="langKey === 'zh' ? field.placeholder || '请输入中文' : '可空，留空渲染回退中文'"
     />
+    <div v-if="field.required && langKey === 'zh'" class="bx-field-tip">中文必填</div>
+  </template>
+
+  <!-- ===== i18n 富文本：XEditor builder 档，按当前语言录入 html.zh / html.en（ADR-27-②） ===== -->
+  <template v-else-if="field.widget === 'i18n-richtext'">
+    <XEditor v-model="model[langKey]" preset="builder" :height="300" />
     <div v-if="field.required && langKey === 'zh'" class="bx-field-tip">中文必填</div>
   </template>
 
