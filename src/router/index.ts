@@ -40,6 +40,13 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/site/page/builder.vue'),
         meta: { title: '页面搭建器' },
       },
+      // XMediaPicker 组件自测 demo（ADR-27-素材选择器）：不挂后端菜单，直接访问 #/dev/media-picker-demo。
+      {
+        path: 'dev/media-picker-demo',
+        name: 'dev-media-picker-demo',
+        component: () => import('@/views/dev/media-picker-demo.vue'),
+        meta: { title: '素材选择器 Demo' },
+      },
     ],
   },
 ]
