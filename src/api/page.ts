@@ -16,6 +16,23 @@ import { request, type ApiEnvelope, type PageResult } from '@/utils/request'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Block = { type: string; [key: string]: any }
 
+/** i18n 文案 {zh,en}（admin 详情原样返回，搭建器中英 Tab 录入；en 可空） */
+export interface I18nText {
+  zh?: string
+  en?: string
+}
+
+/**
+ * 页面级 SEO（C2 ADR-26，admin 详情返原始对象）：
+ * seo_title/seo_description 走 i18n {zh,en}；og_image 单值 URL（非 i18n，中英共用）。
+ * 整体可空（页无 seo → detail.seo=null，server 侧走 hero 派生回退）。
+ */
+export interface PageSeo {
+  seo_title?: I18nText | null
+  seo_description?: I18nText | null
+  og_image?: string | null
+}
+
 /** 页面行（admin 详情含原始 blocks JSON；列表行 blocks 亦原样返回） */
 export interface PageItem {
   id: number
@@ -23,6 +40,7 @@ export interface PageItem {
   title: string
   status: number
   blocks: Block[]
+  seo?: PageSeo | null
   create_by?: number | null
   create_dept?: number | null
   created_at: string | null
@@ -46,7 +64,7 @@ export function createPage(data: Record<string, unknown>): Promise<ApiEnvelope<P
   return request<PageItem>({ url: '/v1/pages', method: 'post', data })
 }
 
-/** PUT /admin/v1/pages/:id —— 整页更新（提交 {title,status,blocks}） */
+/** PUT /admin/v1/pages/:id —— 整页更新（提交 {title,status,blocks,seo}；seo 全空送 null 清除） */
 export function updatePage(
   id: number,
   data: Record<string, unknown>,

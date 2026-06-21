@@ -6,6 +6,7 @@
   | @email     3442535897@qq.com
   | @date      2026-06-17
   | @updated   2026-06-20 10:00:00
+  | @updated   2026-06-21 16:00:00（C2 ③-③：页面 SEO 录入区 seo_title/description i18n + og_image）
   +----------------------------------------------------------------------
   消费 M6-B admin system:page:* 接口：进入 GET 详情载入原始 blocks，整页 PUT 保存。
   左=块类型面板、中=画布纵向区块流（vue-draggable-plus 排序 + 上移/下移/复制/删除/选中）、
@@ -19,7 +20,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, ArrowUp, Back, CopyDocument, Delete, Rank, View } from '@element-plus/icons-vue'
 import * as EpIcons from '@element-plus/icons-vue'
 import { VueDraggable } from 'vue-draggable-plus'
-import { getPage, updatePage, type Block } from '@/api/page'
+import { getPage, updatePage, type Block, type PageSeo } from '@/api/page'
 import {
   BLOCK_FORM_SCHEMA,
   BLOCK_LABELS,
@@ -53,7 +54,39 @@ const saving = ref(false)
 const dirty = ref(false)
 const isLoaded = ref(false)
 
-// 右栏录入语言（i18n 字段中/英 Tab，与查看语言正交）独立于预览语言（§5.3 + §6）
+// ---- 页面 SEO 录入态（C2 ③-③，ADR-26）----
+// seo_title/seo_description 走 i18n {zh,en}（随 editLang 切换）；og_image 单值 URL（非 i18n、中英共用）。
+// 全空 → 保存送 seo:null（server 存 null 走 hero 派生回退）；权威校验在 server validateSeo，前端仅基础提示。
+type SeoForm = { seo_title: { zh: string; en: string }; seo_description: { zh: string; en: string }; og_image: string }
+function emptySeoForm(): SeoForm {
+  return { seo_title: { zh: '', en: '' }, seo_description: { zh: '', en: '' }, og_image: '' }
+}
+const seo = ref<SeoForm>(emptySeoForm())
+const seoCollapse = ref<string[]>([]) // 默认折叠（'seo' 入数组即展开）
+
+/**
+ * 表单 → 保存 payload 的 seo 计算：
+ * - 子字段按非空收敛——i18n 键仅在 zh/en 任一有值时携带（避免只填 og_image 却让 server 对空 title 校验 422）；
+ * - og_image 仅非空时携带（trim）；
+ * - 全部为空 → 返回 null（送 seo:null，server 存 null 走回退链）。
+ */
+function buildSeoPayload(): PageSeo | null {
+  const t = seo.value
+  const out: PageSeo = {}
+  if (t.seo_title.zh.trim() || t.seo_title.en.trim()) {
+    out.seo_title = { zh: t.seo_title.zh, en: t.seo_title.en }
+  }
+  if (t.seo_description.zh.trim() || t.seo_description.en.trim()) {
+    out.seo_description = { zh: t.seo_description.zh, en: t.seo_description.en }
+  }
+  if (t.og_image.trim()) {
+    out.og_image = t.og_image.trim()
+  }
+  return Object.keys(out).length === 0 ? null : out
+}
+
+// 右栏录入语言（i18n 字段中/英 Tab，与查看语言正交）独立于预览语言（§5.3 + §6）。
+// 单一语言态：同时驱动「页面 SEO」i18n 字段与区块 i18n 字段（不新造第二套语言状态，C2 ③-③）。
 const editLang = ref<'zh' | 'en'>('zh')
 // 预览语言（所见即所得，B-增强-①）：同时驱动「画布迷你预览」与「/preview 跨源完整预览」，唯一一处控件。
 const previewLang = ref<'zh' | 'en'>('zh')
@@ -130,6 +163,15 @@ async function load() {
     pageStatus.value = data.status
     blocks.value = normalizeBlocksForEdit(data.blocks ?? [])
     selectedBlock.value = blocks.value[0] ?? null
+    // SEO 回填：detail.seo 为原始 i18n 对象（含 og_image）；null → 保持空初值
+    const s = data.seo
+    seo.value = s
+      ? {
+          seo_title: { zh: s.seo_title?.zh ?? '', en: s.seo_title?.en ?? '' },
+          seo_description: { zh: s.seo_description?.zh ?? '', en: s.seo_description?.en ?? '' },
+          og_image: s.og_image ?? '',
+        }
+      : emptySeoForm()
     isLoaded.value = true
   } catch {
     // 拦截器已弹错误；详情失败回列表
@@ -140,9 +182,9 @@ async function load() {
 }
 load()
 
-// 任意编辑标脏（载入后才生效，避免初始赋值误标）
+// 任意编辑标脏（载入后才生效，避免初始赋值误标）；seo 纳入标脏
 watch(
-  [blocks, pageTitle, pageStatus],
+  [blocks, pageTitle, pageStatus, seo],
   () => {
     if (isLoaded.value) dirty.value = true
   },
@@ -197,6 +239,7 @@ async function save() {
       title: pageTitle.value,
       status: pageStatus.value,
       blocks: serializeBlocksForSave(blocks.value),
+      seo: buildSeoPayload(), // 全空 → null（server 存 null 走回退链）
     })
     dirty.value = false
     ElMessage.success('保存成功')
@@ -337,16 +380,47 @@ onBeforeRouteLeave(async () => {
         </VueDraggable>
       </div>
 
-      <!-- 右：字段表单 -->
+      <!-- 右：页面 SEO + 区块字段表单 -->
       <div class="bx-col bx-col-form">
+        <!-- 录入语言（页面级单一语言态）：同时驱动「页面 SEO」与区块 i18n 字段 -->
+        <el-tabs v-model="editLang" class="bx-lang-tabs">
+          <el-tab-pane label="中文" name="zh" />
+          <el-tab-pane label="English" name="en" />
+        </el-tabs>
+
+        <!-- 页面 SEO（可选，C2 ③-③）：title/description 随 editLang 中英录入；og_image 非 i18n URL -->
+        <el-collapse v-model="seoCollapse" class="bx-seo-collapse">
+          <el-collapse-item name="seo">
+            <template #title>
+              <span class="bx-seo-title">页面 SEO（可选）</span>
+            </template>
+            <el-form label-position="top" class="bx-field-form">
+              <el-form-item label="SEO 标题">
+                <el-input
+                  v-model="seo.seo_title[editLang]"
+                  placeholder="留空则自动用首个 hero 标题（SEO 默认派生）"
+                />
+              </el-form-item>
+              <el-form-item label="SEO 描述">
+                <el-input
+                  v-model="seo.seo_description[editLang]"
+                  type="textarea"
+                  :rows="3"
+                  placeholder="留空则自动用首个 hero 副标题（SEO 默认派生）"
+                />
+              </el-form-item>
+              <el-form-item label="OG 分享图 URL（中英共用）">
+                <el-input v-model="seo.og_image" placeholder="https://…  留空用站点默认图" />
+              </el-form-item>
+            </el-form>
+          </el-collapse-item>
+        </el-collapse>
+
+        <!-- 区块字段编辑 -->
         <template v-if="selectedBlock">
           <div class="bx-col-title">
             {{ BLOCK_LABELS[selectedBlock.type] || selectedBlock.type }} · 字段编辑
           </div>
-          <el-tabs v-model="editLang" class="bx-lang-tabs">
-            <el-tab-pane label="中文" name="zh" />
-            <el-tab-pane label="English" name="en" />
-          </el-tabs>
           <el-form label-position="top" class="bx-field-form">
             <el-form-item v-for="f in selectedFields" :key="f.key">
               <template #label>
@@ -517,6 +591,15 @@ onBeforeRouteLeave(async () => {
 }
 .bx-lang-tabs {
   margin-bottom: 4px;
+}
+.bx-seo-collapse {
+  margin-bottom: 12px;
+  border-top: none;
+}
+.bx-seo-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bx-text-primary);
 }
 .bx-field-form :deep(.el-form-item__label) {
   padding-bottom: 2px;
