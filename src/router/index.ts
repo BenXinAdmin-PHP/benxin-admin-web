@@ -32,6 +32,21 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/HomeView.vue'),
         meta: { title: '首页' },
       },
+      // 页面搭建器（M6-C）：不挂后端菜单，从「页面管理」列表「编辑」进入（带 ?id=）。
+      // 列表页 site/page/index 由 PageMenuSeeder 菜单动态注册，此处仅补 builder 静态子路由。
+      {
+        path: 'site/page/builder',
+        name: 'site-page-builder',
+        component: () => import('@/views/site/page/builder.vue'),
+        meta: { title: '页面搭建器' },
+      },
+      // XMediaPicker 组件自测 demo（ADR-27-素材选择器）：不挂后端菜单，直接访问 #/dev/media-picker-demo。
+      {
+        path: 'dev/media-picker-demo',
+        name: 'dev-media-picker-demo',
+        component: () => import('@/views/dev/media-picker-demo.vue'),
+        meta: { title: '素材选择器 Demo' },
+      },
     ],
   },
 ]

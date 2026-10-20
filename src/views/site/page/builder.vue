@@ -1,0 +1,611 @@
+<!--
+  +----------------------------------------------------------------------
+  | @project   BenXinAdmin
+  | @mission   页面拖拽搭建器（三栏：块面板/画布排序/字段表单，M6-C / ADR-22）
+  | @author    仗键天涯(daxing)
+  | @email     3442535897@qq.com
+  | @date      2026-06-17
+  | @updated   2026-06-20 10:00:00
+  | @updated   2026-06-21 16:00:00（C2 ③-③：页面 SEO 录入区 seo_title/description i18n + og_image）
+  +----------------------------------------------------------------------
+  消费 M6-B admin system:page:* 接口：进入 GET 详情载入原始 blocks，整页 PUT 保存。
+  左=块类型面板、中=画布纵向区块流（vue-draggable-plus 排序 + 上移/下移/复制/删除/选中）、
+  右=BLOCK_FORM_SCHEMA 驱动字段表单（i18n 中/英 Tab 落 {zh,en}）。保存语义：整 blocks 数组
+  PUT，后端 validateBlocks 权威校验，失败 422 由 request 拦截器如实弹后端 msg（不假成功）。
+-->
+<script setup lang="ts">
+import { computed, provide, ref, watch } from 'vue'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowDown, ArrowUp, Back, CopyDocument, Delete, Rank, View } from '@element-plus/icons-vue'
+import * as EpIcons from '@element-plus/icons-vue'
+import { VueDraggable } from 'vue-draggable-plus'
+import { getPage, updatePage, type Block, type PageSeo } from '@/api/page'
+import {
+  BLOCK_FORM_SCHEMA,
+  BLOCK_LABELS,
+  BLOCK_TYPES,
+  createEmptyBlock,
+  normalizeBlocksForEdit,
+  serializeBlocksForSave,
+} from './blockSchema'
+import FieldWidget from './FieldWidget.vue'
+import BlockPreview from './BlockPreview.vue'
+import { useUserStore } from '@/stores/user'
+
+defineOptions({ name: 'SitePageBuilder' })
+
+const route = useRoute()
+const router = useRouter()
+const userStore = useUserStore()
+
+const pageId = Number(route.query.id)
+const canSave = computed(() => userStore.hasPerm('system:page:save'))
+
+// ---- 页面态 ----
+const pageSlug = ref('')
+const pageTitle = ref('')
+const pageStatus = ref<number>(0)
+const blocks = ref<Block[]>([])
+// 选中块按「对象引用」跟踪（非索引）：拖拽重排后引用不变，高亮与右栏表单不错位
+const selectedBlock = ref<Block | null>(null)
+const loading = ref(true)
+const saving = ref(false)
+const dirty = ref(false)
+const isLoaded = ref(false)
+
+// ---- 页面 SEO 录入态（C2 ③-③，ADR-26）----
+// seo_title/seo_description 走 i18n {zh,en}（随 editLang 切换）；og_image 单值 URL（非 i18n、中英共用）。
+// 全空 → 保存送 seo:null（server 存 null 走 hero 派生回退）；权威校验在 server validateSeo，前端仅基础提示。
+type SeoForm = { seo_title: { zh: string; en: string }; seo_description: { zh: string; en: string }; og_image: string }
+function emptySeoForm(): SeoForm {
+  return { seo_title: { zh: '', en: '' }, seo_description: { zh: '', en: '' }, og_image: '' }
+}
+const seo = ref<SeoForm>(emptySeoForm())
+const seoCollapse = ref<string[]>([]) // 默认折叠（'seo' 入数组即展开）
+
+/**
+ * 表单 → 保存 payload 的 seo 计算：
+ * - 子字段按非空收敛——i18n 键仅在 zh/en 任一有值时携带（避免只填 og_image 却让 server 对空 title 校验 422）；
+ * - og_image 仅非空时携带（trim）；
+ * - 全部为空 → 返回 null（送 seo:null，server 存 null 走回退链）。
+ */
+function buildSeoPayload(): PageSeo | null {
+  const t = seo.value
+  const out: PageSeo = {}
+  if (t.seo_title.zh.trim() || t.seo_title.en.trim()) {
+    out.seo_title = { zh: t.seo_title.zh, en: t.seo_title.en }
+  }
+  if (t.seo_description.zh.trim() || t.seo_description.en.trim()) {
+    out.seo_description = { zh: t.seo_description.zh, en: t.seo_description.en }
+  }
+  if (t.og_image.trim()) {
+    out.og_image = t.og_image.trim()
+  }
+  return Object.keys(out).length === 0 ? null : out
+}
+
+// 右栏录入语言（i18n 字段中/英 Tab，与查看语言正交）独立于预览语言（§5.3 + §6）。
+// 单一语言态：同时驱动「页面 SEO」i18n 字段与区块 i18n 字段（不新造第二套语言状态，C2 ③-③）。
+const editLang = ref<'zh' | 'en'>('zh')
+// 预览语言（所见即所得，B-增强-①）：同时驱动「画布迷你预览」与「/preview 跨源完整预览」，唯一一处控件。
+const previewLang = ref<'zh' | 'en'>('zh')
+provide('builderEditLang', editLang)
+
+// ---- 草稿预览（跨源 postMessage 发送端，B2-② / ADR-25）----
+// 官网公开基址（去尾斜杠，复用 B1-③ VITE_SITE_BASE 口径）；未配置时为空串 → 预览按钮禁用、零副作用。
+const siteBase = (import.meta.env.VITE_SITE_BASE || '').replace(/\/+$/, '')
+
+/**
+ * 点「预览」：window.open 打开官网 /preview，与之完成跨源 postMessage 握手——
+ * 收到其 preview-ready（且 e.origin === siteBase）后，把当前编辑器内存态 blocks（含未保存改动，
+ * 经 serializeBlocksForSave 产出与单页接口同构的 i18n {zh,en} 数组）回发，targetOrigin 显式锁 siteBase（非 '*'）。
+ * 零 server、零 token、不持久化（守 ADR-25）。
+ */
+function openPreview() {
+  if (!siteBase) return // 禁用态已挡，双保险
+  const target = `${siteBase}/preview`
+  const w = window.open(target, '_blank')
+  if (!w) {
+    ElMessage.warning('预览窗口被浏览器拦截，请允许本站弹出窗口后重试')
+    return
+  }
+  let settled = false
+  const onMessage = (e: MessageEvent) => {
+    if (e.origin !== siteBase) return // origin 校验：仅信任官网基址来的消息
+    if (e.data?.type === 'preview-ready') {
+      w.postMessage(
+        {
+          type: 'preview-data',
+          blocks: serializeBlocksForSave(blocks.value),
+          lang: previewLang.value,
+        },
+        siteBase, // targetOrigin 锁 siteBase，绝不 '*'
+      )
+      cleanup()
+    }
+  }
+  const timer = window.setTimeout(() => {
+    cleanup()
+    ElMessage.warning('预览握手超时，请确认官网已启动且其 origin 白名单与本后台一致')
+  }, 8000)
+  function cleanup() {
+    if (settled) return
+    settled = true
+    window.removeEventListener('message', onMessage)
+    clearTimeout(timer)
+  }
+  window.addEventListener('message', onMessage)
+}
+
+const selectedFields = computed(() =>
+  selectedBlock.value ? BLOCK_FORM_SCHEMA[selectedBlock.value.type] ?? [] : [],
+)
+
+/** 左栏块图标（@element-plus/icons-vue 组件名 → 组件） */
+function iconOf(name: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (EpIcons as any)[name]
+}
+
+// ---- 载入 ----
+async function load() {
+  if (!Number.isInteger(pageId) || pageId <= 0) {
+    ElMessage.error('缺少有效的页面 id')
+    router.replace('/site/page')
+    return
+  }
+  loading.value = true
+  try {
+    const { data } = await getPage(pageId)
+    pageSlug.value = data.slug
+    pageTitle.value = data.title
+    pageStatus.value = data.status
+    blocks.value = normalizeBlocksForEdit(data.blocks ?? [])
+    selectedBlock.value = blocks.value[0] ?? null
+    // SEO 回填：detail.seo 为原始 i18n 对象（含 og_image）；null → 保持空初值
+    const s = data.seo
+    seo.value = s
+      ? {
+          seo_title: { zh: s.seo_title?.zh ?? '', en: s.seo_title?.en ?? '' },
+          seo_description: { zh: s.seo_description?.zh ?? '', en: s.seo_description?.en ?? '' },
+          og_image: s.og_image ?? '',
+        }
+      : emptySeoForm()
+    isLoaded.value = true
+  } catch {
+    // 拦截器已弹错误；详情失败回列表
+    router.replace('/site/page')
+  } finally {
+    loading.value = false
+  }
+}
+load()
+
+// 任意编辑标脏（载入后才生效，避免初始赋值误标）；seo 纳入标脏
+watch(
+  [blocks, pageTitle, pageStatus, seo],
+  () => {
+    if (isLoaded.value) dirty.value = true
+  },
+  { deep: true },
+)
+
+// ---- 块操作（按 v-for 索引执行；选中态按对象引用，拖拽后不错位） ----
+function addBlock(type: string) {
+  const blk = createEmptyBlock(type)
+  blocks.value.push(blk)
+  selectedBlock.value = blk
+}
+function selectBlock(blk: Block) {
+  selectedBlock.value = blk
+}
+function moveUp(i: number) {
+  if (i <= 0) return
+  const arr = blocks.value
+  const tmp = arr[i]!
+  arr[i] = arr[i - 1]!
+  arr[i - 1] = tmp
+}
+function moveDown(i: number) {
+  if (i >= blocks.value.length - 1) return
+  const arr = blocks.value
+  const tmp = arr[i]!
+  arr[i] = arr[i + 1]!
+  arr[i + 1] = tmp
+}
+function duplicateBlock(i: number) {
+  const copy = JSON.parse(JSON.stringify(blocks.value[i])) as Block
+  blocks.value.splice(i + 1, 0, copy)
+  selectedBlock.value = copy
+}
+function removeBlock(i: number) {
+  const removed = blocks.value[i]
+  blocks.value.splice(i, 1)
+  if (selectedBlock.value === removed) {
+    selectedBlock.value = blocks.value[i] ?? blocks.value[i - 1] ?? null
+  }
+}
+
+// ---- 保存 ----
+async function save() {
+  if (!pageTitle.value.trim()) {
+    ElMessage.warning('请填写页面名')
+    return
+  }
+  saving.value = true
+  try {
+    await updatePage(pageId, {
+      title: pageTitle.value,
+      status: pageStatus.value,
+      blocks: serializeBlocksForSave(blocks.value),
+      seo: buildSeoPayload(), // 全空 → null（server 存 null 走回退链）
+    })
+    dirty.value = false
+    ElMessage.success('保存成功')
+  } catch {
+    // 422 等失败由 request 拦截器弹后端 msg（定位 block 路径），此处不假成功
+  } finally {
+    saving.value = false
+  }
+}
+
+function goBack() {
+  router.push('/site/page')
+}
+
+// 未保存改动离开提示
+onBeforeRouteLeave(async () => {
+  if (!dirty.value) return true
+  try {
+    await ElMessageBox.confirm('有未保存的改动，确定离开吗？', '提示', {
+      type: 'warning',
+      confirmButtonText: '离开',
+      cancelButtonText: '继续编辑',
+    })
+    return true
+  } catch {
+    return false
+  }
+})
+</script>
+
+<template>
+  <div v-loading="loading" class="bx-builder">
+    <!-- 顶栏 -->
+    <div class="bx-topbar">
+      <el-button :icon="Back" text @click="goBack">返回列表</el-button>
+      <div class="bx-page-meta">
+        <el-input v-model="pageTitle" placeholder="页面名" class="bx-title-input" />
+        <el-tag type="info" effect="plain">/{{ pageSlug }}</el-tag>
+      </div>
+      <div class="bx-topbar-right">
+        <span class="bx-status-label">{{ pageStatus === 1 ? '已发布' : '草稿' }}</span>
+        <el-switch
+          v-model="pageStatus"
+          :active-value="1"
+          :inactive-value="0"
+          inline-prompt
+          active-text="发布"
+          inactive-text="草稿"
+        />
+        <!-- 预览语言（所见即所得，B-增强-①）：唯一控件，同时驱动画布迷你预览与 /preview 跨源完整预览 -->
+        <div class="bx-preview-lang-field">
+          <span class="bx-preview-lang-label">预览语言</span>
+          <el-select v-model="previewLang" size="default" class="bx-preview-lang">
+            <el-option label="中文" value="zh" />
+            <el-option label="English" value="en" />
+          </el-select>
+        </div>
+        <!-- 草稿预览：开官网 /preview 跨源握手推当前编辑态（按预览语言，B2-②） -->
+        <template v-if="siteBase">
+          <el-button :icon="View" @click="openPreview">预览</el-button>
+        </template>
+        <el-tooltip v-else content="未配置官网地址（VITE_SITE_BASE）" placement="bottom">
+          <span>
+            <el-button :icon="View" disabled>预览</el-button>
+          </span>
+        </el-tooltip>
+        <el-button
+          v-if="canSave"
+          type="primary"
+          :loading="saving"
+          @click="save"
+        >
+          保存页面
+        </el-button>
+      </div>
+    </div>
+
+    <!-- 三栏 -->
+    <div class="bx-cols">
+      <!-- 左：块类型面板 -->
+      <div class="bx-col bx-col-left">
+        <div class="bx-col-title">添加区块</div>
+        <div class="bx-block-types">
+          <button
+            v-for="bt in BLOCK_TYPES"
+            :key="bt.type"
+            class="bx-block-type"
+            type="button"
+            @click="addBlock(bt.type)"
+          >
+            <el-icon><component :is="iconOf(bt.icon)" /></el-icon>
+            <span>{{ bt.label }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 中：画布 -->
+      <div class="bx-col bx-col-canvas">
+        <div class="bx-canvas-bar">
+          <span class="bx-col-title">画布（{{ blocks.length }} 个区块）</span>
+        </div>
+
+        <el-empty v-if="blocks.length === 0" description="从左侧添加第一个区块" />
+
+        <VueDraggable
+          v-else
+          v-model="blocks"
+          handle=".bx-block-drag"
+          :animation="160"
+          class="bx-canvas-list"
+        >
+          <div
+            v-for="(blk, i) in blocks"
+            :key="i"
+            class="bx-canvas-card"
+            :class="{ 'is-active': blk === selectedBlock }"
+            @click="selectBlock(blk)"
+          >
+            <div class="bx-card-head">
+              <el-icon class="bx-block-drag"><Rank /></el-icon>
+              <span class="bx-card-type">{{ BLOCK_LABELS[blk.type] || blk.type }}</span>
+              <div class="bx-card-ops" @click.stop>
+                <el-button text :icon="ArrowUp" :disabled="i === 0" @click="moveUp(i)" />
+                <el-button
+                  text
+                  :icon="ArrowDown"
+                  :disabled="i === blocks.length - 1"
+                  @click="moveDown(i)"
+                />
+                <el-button text :icon="CopyDocument" @click="duplicateBlock(i)" />
+                <el-button text type="danger" :icon="Delete" @click="removeBlock(i)" />
+              </div>
+            </div>
+            <div class="bx-card-body">
+              <BlockPreview :block="blk" :lang="previewLang" />
+            </div>
+          </div>
+        </VueDraggable>
+      </div>
+
+      <!-- 右：页面 SEO + 区块字段表单 -->
+      <div class="bx-col bx-col-form">
+        <!-- 录入语言（页面级单一语言态）：同时驱动「页面 SEO」与区块 i18n 字段 -->
+        <el-tabs v-model="editLang" class="bx-lang-tabs">
+          <el-tab-pane label="中文" name="zh" />
+          <el-tab-pane label="English" name="en" />
+        </el-tabs>
+
+        <!-- 页面 SEO（可选，C2 ③-③）：title/description 随 editLang 中英录入；og_image 非 i18n URL -->
+        <el-collapse v-model="seoCollapse" class="bx-seo-collapse">
+          <el-collapse-item name="seo">
+            <template #title>
+              <span class="bx-seo-title">页面 SEO（可选）</span>
+            </template>
+            <el-form label-position="top" class="bx-field-form">
+              <el-form-item label="SEO 标题">
+                <el-input
+                  v-model="seo.seo_title[editLang]"
+                  placeholder="留空则自动用首个 hero 标题（SEO 默认派生）"
+                />
+              </el-form-item>
+              <el-form-item label="SEO 描述">
+                <el-input
+                  v-model="seo.seo_description[editLang]"
+                  type="textarea"
+                  :rows="3"
+                  placeholder="留空则自动用首个 hero 副标题（SEO 默认派生）"
+                />
+              </el-form-item>
+              <el-form-item label="OG 分享图 URL（中英共用）">
+                <el-input v-model="seo.og_image" placeholder="https://…  留空用站点默认图" />
+              </el-form-item>
+            </el-form>
+          </el-collapse-item>
+        </el-collapse>
+
+        <!-- 区块字段编辑 -->
+        <template v-if="selectedBlock">
+          <div class="bx-col-title">
+            {{ BLOCK_LABELS[selectedBlock.type] || selectedBlock.type }} · 字段编辑
+          </div>
+          <el-form label-position="top" class="bx-field-form">
+            <el-form-item v-for="f in selectedFields" :key="f.key">
+              <template #label>
+                <span>{{ f.label }}</span>
+                <span v-if="f.required" class="bx-req">*</span>
+              </template>
+              <FieldWidget v-model="selectedBlock[f.key]" :field="f" />
+            </el-form-item>
+          </el-form>
+        </template>
+        <el-empty v-else description="选中一个区块以编辑其字段" />
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.bx-builder {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 110px);
+  min-height: 480px;
+}
+.bx-topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 14px;
+  background: var(--bx-card-bg);
+  border: 1px solid var(--bx-border);
+  border-radius: var(--bx-card-radius);
+  margin-bottom: 10px;
+}
+.bx-page-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+.bx-title-input {
+  max-width: 320px;
+}
+.bx-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.bx-status-label {
+  font-size: 13px;
+  color: var(--bx-text-secondary);
+}
+.bx-preview-lang-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bx-preview-lang-label {
+  font-size: 13px;
+  color: var(--bx-text-secondary);
+  white-space: nowrap;
+}
+.bx-preview-lang {
+  width: 104px;
+}
+.bx-cols {
+  display: flex;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+.bx-col {
+  background: var(--bx-card-bg);
+  border: 1px solid var(--bx-border);
+  border-radius: var(--bx-card-radius);
+  padding: 12px;
+  overflow-y: auto;
+}
+.bx-col-left {
+  width: 184px;
+  flex-shrink: 0;
+}
+.bx-col-canvas {
+  flex: 1;
+  min-width: 0;
+}
+.bx-col-form {
+  width: 380px;
+  flex-shrink: 0;
+}
+.bx-col-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bx-text-primary);
+  margin-bottom: 12px;
+}
+.bx-block-types {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bx-block-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--bx-border);
+  border-radius: var(--bx-control-radius);
+  background: var(--bx-page-bg);
+  color: var(--bx-text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.bx-block-type:hover {
+  border-color: var(--bx-color-primary);
+  color: var(--bx-color-primary);
+}
+.bx-canvas-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.bx-canvas-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bx-canvas-card {
+  border: 1px solid var(--bx-border);
+  border-radius: var(--bx-control-radius);
+  background: var(--bx-card-bg);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.bx-canvas-card.is-active {
+  border-color: var(--bx-color-primary);
+  box-shadow: 0 0 0 1px var(--bx-color-primary);
+}
+.bx-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--bx-border);
+  background: var(--bx-table-header-bg);
+  border-radius: var(--bx-control-radius) var(--bx-control-radius) 0 0;
+}
+.bx-card-type {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bx-text-secondary);
+}
+.bx-card-ops {
+  display: flex;
+  gap: 2px;
+}
+.bx-block-drag {
+  cursor: grab;
+  color: var(--bx-text-tertiary);
+}
+.bx-block-drag:active {
+  cursor: grabbing;
+}
+.bx-card-body {
+  padding: 12px 14px;
+}
+.bx-lang-tabs {
+  margin-bottom: 4px;
+}
+.bx-seo-collapse {
+  margin-bottom: 12px;
+  border-top: none;
+}
+.bx-seo-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bx-text-primary);
+}
+.bx-field-form :deep(.el-form-item__label) {
+  padding-bottom: 2px;
+}
+.bx-req {
+  color: var(--el-color-danger);
+  margin-left: 2px;
+}
+</style>

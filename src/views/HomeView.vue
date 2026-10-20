@@ -9,20 +9,29 @@
   +----------------------------------------------------------------------
 -->
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Avatar, CircleCheck, Key, Menu as MenuIco } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { changePassword } from '@/api/auth'
+import { getDashboardStats, type DashboardStats } from '@/api/dashboard'
 import type { MenuNode } from '@/api/auth'
 import MenuIcon from '@/layouts/MenuIcon.vue'
 
 const userStore = useUserStore()
 const router = useRouter()
 
-// —— 统计来源：均为登录后已具备的真实客户端数据，不造假数 ——
-// TODO: 管理员总数 / 今日登录数等业务统计待后端 dashboard 统计接口就绪后接入
+// 管理员统计由后端按数据权限返回，失败时保留已知的客户端统计。
+const dashboardStats = ref<DashboardStats | null>(null)
+onMounted(async () => {
+  if (!userStore.hasPerm('system:admin:list')) return
+  try {
+    dashboardStats.value = (await getDashboardStats()).data
+  } catch {
+    // 统计接口不可用时不显示未知数字。
+  }
+})
 function countLeaves(menus: MenuNode[]): number {
   return menus.reduce(
     (n, m) => n + (m.children && m.children.length ? countLeaves(m.children) : 1),
@@ -32,6 +41,12 @@ function countLeaves(menus: MenuNode[]): number {
 const menuCount = computed(() => countLeaves(userStore.menus))
 
 const stats = computed(() => [
+  ...(dashboardStats.value
+    ? [
+        { label: '可见管理员', value: dashboardStats.value.visible_admins, icon: Avatar, tone: 'a' },
+        { label: '我今日登录', value: dashboardStats.value.my_logins_today, icon: CircleCheck, tone: 'b' },
+      ]
+    : []),
   { label: '我的角色', value: userStore.roles.length, icon: Avatar, tone: 'a' },
   { label: '权限点', value: userStore.perms.length, icon: Key, tone: 'b' },
   { label: '可见菜单', value: menuCount.value, icon: MenuIco, tone: 'c' },
